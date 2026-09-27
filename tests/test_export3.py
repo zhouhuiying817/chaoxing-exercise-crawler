@@ -51,7 +51,10 @@ def main():
     for p in (xlsx, txt, docx):
         base.add(p.stem)
     check("三种格式同一基础名", len(base) == 1, str(base))
-    check("基础名=日期_作业名称", re.fullmatch(r"\d{8}_Unit1测验", xlsx.stem) is not None, xlsx.stem)
+    check("基础名=作业名称_日期_时间", re.fullmatch(r"Unit1测验_\d{8}_\d{6}", xlsx.stem) is not None,
+          xlsx.stem)
+    # 三种格式文件位于同一子文件夹中
+    check("三种格式在同一文件夹", xlsx.parent == txt.parent == docx.parent, str(xlsx.parent))
 
     # 3) TXT 内容读回验证
     text = txt.read_text(encoding="utf-8-sig")
@@ -69,12 +72,22 @@ def main():
     check("Word 含答案", "【参考答案】B" in all_text)
     check("Word 含解析", "【解析】1+1=2" in all_text)
 
-    # 5) 清理测试文件
+    # 5) 清理测试文件（删除子文件夹，含可能存在的图片目录）
+    folder = xlsx.parent
     for p in (xlsx, txt, docx):
         try:
             p.unlink()
         except Exception:
             pass
+    try:
+        img_dir = folder / f"{folder.name}_图片"
+        if img_dir.exists():
+            for f in img_dir.glob("*"):
+                f.unlink(missing_ok=True)
+            img_dir.rmdir()
+        folder.rmdir()  # 目录空后删除
+    except Exception:
+        pass
     print(f"已清理测试文件")
 
     print("=" * 50)

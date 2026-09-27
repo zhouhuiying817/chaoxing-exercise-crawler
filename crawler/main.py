@@ -10,7 +10,8 @@
      不自动翻页、不遍历整个课程、不自动答题。
   3. 提取字段：课程名称、章节名称、题型（单选/多选/判断等）、题干、A~F 选项、
      参考答案、解析。
-  4. 提取结果写入 output/日期_作业名称.xlsx（每次采集生成独立文件，不覆盖旧题库）。
+  4. 提取结果写入 output/作业名称_日期_时间/ 子文件夹中（内含 xlsx / txt / docx
+     与配套图片目录，每次采集生成独立文件夹，不覆盖旧题库）。
 
 兼容的页面结构：
   - 作业页面（mooc2/work/view 等）：题目容器为 .questionLi，
@@ -929,23 +930,27 @@ def safe_filename(name: str) -> str:
 
 def build_output_basename(questions: List[Dict]) -> str:
     """
-    生成输出文件的“基础名”（不含扩展名），格式：日期_作业名称。
+    生成输出文件与输出文件夹的“基础名”（不含扩展名），格式：作业名称_日期_时间。
     命名优先级：章节名称 -> 课程名称 -> “习题”兜底。
-    若同名文件（xlsx/txt/docx 任一）已存在（同一天重复采集），追加时分秒后缀。
-    三种格式共用同一基础名，方便配套管理。
+    三种格式文件与图片目录统一放在 output/{基础名}/ 子文件夹中，配套管理。
+    同秒重复采集（同名已存在）时自动追加 _2/_3 防止覆盖。
     """
-    date_str = datetime.now().strftime("%Y%m%d")
+    now = datetime.now()
+    date_part = now.strftime("%Y%m%d")
+    time_part = now.strftime("%H%M%S")
     base = "习题"
     if questions:
         q0 = questions[0]
         base = (safe_filename(q0.get("chapter") or "")
                 or safe_filename(q0.get("course") or "")
                 or "习题")
-    name = f"{date_str}_{base}"
-    exists = any((OUTPUT_DIR / f"{name}{ext}").exists()
-                 for ext in (".xlsx", ".txt", ".docx"))
-    if exists:
-        name = f"{date_str}_{base}_{datetime.now().strftime('%H%M%S')}"
+    name = f"{base}_{date_part}_{time_part}"
+    # 同名（同一秒内重复采集）保护：追加序号
+    n = 2
+    while any((OUTPUT_DIR / name / f"{name}{ext}").exists()
+              for ext in (".xlsx", ".txt", ".docx")):
+        name = f"{base}_{date_part}_{time_part}_{n}"
+        n += 1
     return name
 
 
@@ -958,7 +963,7 @@ def img_mark_to_readable(text: str) -> str:
 
 async def download_media(context, questions: List[Dict], basename: str) -> List[Dict]:
     """
-    下载题目中的图片到 output/{basename}_图片/ 目录，
+    下载题目中的图片到 output/{basename}/{basename}_图片/ 目录，
     并把每题占位符 [[IMG:序号]] 替换为 [[IMG:文件名]]（下载成功后）。
     图片 URL 去重后批量下载（每批 3 张 + 随机延时，避免触发风控）。
     返回替换后的 questions（原列表就地修改）。
@@ -975,7 +980,7 @@ async def download_media(context, questions: List[Dict], basename: str) -> List[
     if not need:
         return questions
 
-    media_dir = OUTPUT_DIR / f"{basename}_图片"
+    media_dir = OUTPUT_DIR / basename / f"{basename}_图片"
     media_dir.mkdir(parents=True, exist_ok=True)
     logger.info(f"共发现 {len(need)} 张题目图片，正在下载到 {media_dir.name}/ ...")
 
@@ -1076,14 +1081,16 @@ def format_questions_text(questions: List[Dict]) -> str:
 
 
 def export_txt(questions: List[Dict], basename: Optional[str] = None) -> Path:
-    """把题目列表写入 output/日期_作业名称.txt（UTF-8 带 BOM，记事本打开不乱码）"""
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = OUTPUT_DIR / f"{basename or build_output_basename(questions)}.txt"
+    """把题目列表写入 output/{基础名}/{基础名}.txt（UTF-8 带 BOM，记事本打开不乱码）"""
+    base = basename or build_output_basename(questions)
+    out_dir = OUTPUT_DIR / base
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"{base}.txt"
     try:
         # utf-8-sig：带 BOM，Windows 记事本/Excel 双击打开均不乱码
         out_path.write_text(format_questions_text(questions), encoding="utf-8-sig")
     except PermissionError:
-        backup = OUTPUT_DIR / f"{out_path.stem}_{datetime.now().strftime('%H%M%S')}.txt"
+        backup = out_path.parent / f"{out_path.stem}_{datetime.now().strftime('%H%M%S')}.txt"
         logger.warning(f"TXT 文件被占用，已改存为：{backup.name}")
         backup.write_text(format_questions_text(questions), encoding="utf-8-sig")
         out_path = backup
@@ -1113,8 +1120,10 @@ def _add_text_with_images(p, text: str, img_dir: Path):
 
 
 def export_word(questions: List[Dict], basename: Optional[str] = None) -> Path:
-    """把题目列表写入 output/日期_作业名称.docx（Word 文档，加粗排版，图片内嵌）"""
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    """把题目列表写入 output/{基础名}/{基础名}.docx（Word 文档，加粗排版，图片内嵌）"""
+    base = basename or build_output_basename(questions)
+    out_dir = OUTPUT_DIR / base
+    out_dir.mkdir(parents=True, exist_ok=True)
     try:
         from docx import Document
         from docx.shared import Pt
@@ -1123,8 +1132,8 @@ def export_word(questions: List[Dict], basename: Optional[str] = None) -> Path:
         logger.error("未安装 python-docx，无法导出 Word。请执行：pip install python-docx")
         return Path()
 
-    out_path = OUTPUT_DIR / f"{basename or build_output_basename(questions)}.docx"
-    img_dir = OUTPUT_DIR / f"{basename or build_output_basename(questions)}_图片"
+    out_path = out_dir / f"{base}.docx"
+    img_dir = out_dir / f"{base}_图片"
     try:
         doc = Document()
         # 全局中文字体（宋体），避免 Word 打开中文乱码
@@ -1166,7 +1175,7 @@ def export_word(questions: List[Dict], basename: Optional[str] = None) -> Path:
 
         doc.save(out_path)
     except PermissionError:
-        backup = OUTPUT_DIR / f"{out_path.stem}_{datetime.now().strftime('%H%M%S')}.docx"
+        backup = out_path.parent / f"{out_path.stem}_{datetime.now().strftime('%H%M%S')}.docx"
         logger.warning(f"Word 文件被占用，已改存为：{backup.name}")
         out_path = backup
         doc.save(out_path)
@@ -1174,8 +1183,10 @@ def export_word(questions: List[Dict], basename: Optional[str] = None) -> Path:
 
 
 def export_excel(questions: List[Dict], basename: Optional[str] = None) -> Path:
-    """把题目列表写入 output/日期_作业名称.xlsx，返回文件路径（每次采集生成独立文件）"""
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    """把题目列表写入 output/{基础名}/{基础名}.xlsx（每次采集生成独立文件夹）"""
+    base = basename or build_output_basename(questions)
+    out_dir = OUTPUT_DIR / base
+    out_dir.mkdir(parents=True, exist_ok=True)
     wb = Workbook()
     ws = wb.active
     ws.title = "题库"
@@ -1216,12 +1227,12 @@ def export_excel(questions: List[Dict], basename: Optional[str] = None) -> Path:
         ws.column_dimensions[get_column_letter(idx)].width = width
     ws.freeze_panes = "A2"
 
-    out_path = OUTPUT_DIR / f"{basename or build_output_basename(questions)}.xlsx"
+    out_path = out_dir / f"{base}.xlsx"
     try:
         wb.save(out_path)
     except PermissionError:
-        # 文件恰好被占用（极少见，文件名含日期基本不会冲突）：追加时分秒重试
-        backup = OUTPUT_DIR / f"{out_path.stem}_{datetime.now().strftime('%H%M%S')}.xlsx"
+        # 文件恰好被占用（极少见，文件名含日期时间基本不会冲突）：追加时分秒重试
+        backup = out_path.parent / f"{out_path.stem}_{datetime.now().strftime('%H%M%S')}.xlsx"
         logger.warning(f"文件被其他程序占用，已改存为：{backup.name}")
         wb.save(backup)
         out_path = backup

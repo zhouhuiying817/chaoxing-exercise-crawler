@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
-"""一次性生成 samples/ 脱敏示例题库（不进入 Git 追踪？——不，samples 要入库）
-生成：示例_第一章 Python 入门.xlsx/.txt/.docx + _图片/formula01.png、formula02.png
+"""一次性生成 samples/ 脱敏示例题库（入库，供同学免爬虫体验刷题网页）
+生成：samples/示例_第一章 Python 入门/ 子文件夹内
+  - 示例_第一章 Python 入门.xlsx / .txt / .docx
+  - 示例_第一章 Python 入门_图片/formula01.png、formula02.png
 题目为虚构示例，无任何真实用户数据，可直接用于体验刷题网页。
 """
 import sys
@@ -12,7 +14,8 @@ from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 
 SAMPLES = Path(__file__).resolve().parent.parent / "samples"
 BASE = "示例_第一章 Python 入门"
-IMG_DIR = SAMPLES / f"{BASE}_图片"
+OUT_DIR = SAMPLES / BASE
+IMG_DIR = OUT_DIR / f"{BASE}_图片"
 IMG_DIR.mkdir(parents=True, exist_ok=True)
 
 
