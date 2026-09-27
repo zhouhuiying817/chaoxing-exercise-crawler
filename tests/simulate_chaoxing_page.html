@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>大学英语_Unit1测验_超星学习通</title>
+</head>
+<body>
+<!-- 模拟学习通页面：面包屑 + iframe 内 .TiMu 题目结构 -->
+<div class="crumb">大学英语 / Unit1测验</div>
+<iframe id="frame_content" src="about:blank" style="width:100%;height:800px;border:0;"></iframe>
+<script>
+  // 向 iframe 写入模拟的题目 DOM（学习通经典 .TiMu 结构）
+  var doc = document.getElementById("frame_content").contentDocument;
+  doc.open(); doc.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>
+    <div class="TiMu">
+      <div class="Zy_TItle clearfix"><div class="Zy_TItle_t">（单选题）1+1等于（）</div></div>
+      <div class="Zy_ulTop"><ul>
+        <li class="fl"><span class="before">A</span><div class="fl answer_p">1</div></li>
+        <li class="fl"><span class="before">B</span><div class="fl answer_p">2</div></li>
+        <li class="fl"><span class="before">C</span><div class="fl answer_p">3</div></li>
+        <li class="fl"><span class="before">D</span><div class="fl answer_p">4</div></li>
+      </ul></div>
+      <div class="Zyon">我的答案：A</div>
+      <div class="marking_da">正确答案：B</div>
+      <div class="marking_exam">解析：1+1=2，故选B。</div>
+    </div>
+    <div class="TiMu">
+      <div class="Zy_TItle clearfix"><div class="Zy_TItle_t">（多选题）下列属于水果的有（）</div></div>
+      <div class="Zy_ulTop"><ul>
+        <li class="fl"><span class="before">A</span><div class="fl answer_p">苹果</div></li>
+        <li class="fl"><span class="before">B</span><div class="fl answer_p">香蕉</div></li>
+        <li class="fl"><span class="before">C</span><div class="fl answer_p">土豆</div></li>
+        <li class="fl"><span class="before">D</span><div class="fl answer_p">西红柿</div></li>
+      </ul></div>
+      <div class="marking_da">正确答案：AB</div>
+      <div class="marking_exam">解析：苹果和香蕉是水果。</div>
+    </div>
+    <div class="TiMu">
+      <div class="Zy_TItle clearfix"><div class="Zy_TItle_t">（判断题）地球是圆的。</div></div>
+      <div class="Zy_ulTop"><ul>
+        <li class="fl"><span class="before">A</span><div class="fl answer_p">正确</div></li>
+        <li class="fl"><span class="before">B</span><div class="fl answer_p">错误</div></li>
+      </ul></div>
+      <div class="marking_da">正确答案：A</div>
+      <div class="marking_exam">解析：地球是一个近似球体。</div>
+    </div>
+    <div class="TiMu">
+      <div class="Zy_TItle clearfix"><div class="Zy_TItle_t">中国四大发明包括（）</div></div>
+      <div class="Zy_ulTop"><ul>
+        <li class="fl"><input type="checkbox"><span class="before">A</span><div class="fl answer_p">造纸术</div></li>
+        <li class="fl"><input type="checkbox"><span class="before">B</span><div class="fl answer_p">指南针</div></li>
+        <li class="fl"><input type="checkbox"><span class="before">C</span><div class="fl answer_p">火药</div></li>
+        <li class="fl"><input type="checkbox"><span class="before">D</span><div class="fl answer_p">印刷术</div></li>
+        <li class="fl"><input type="checkbox"><span class="before">E</span><div class="fl answer_p">地动仪</div></li>
+      </ul></div>
+      <div class="marking_da">正确答案：ABCD</div>
+      <div class="marking_exam">解析：四大发明为造纸术、指南针、火药、印刷术。</div>
+    </div>
+  </body></html>`);
+  doc.close();
+</script>
+</body>
+</html>

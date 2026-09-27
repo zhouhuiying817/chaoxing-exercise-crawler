@@ -1,0 +1,10 @@
+# 学习通习题采集爬虫依赖
+# 安装：pip install -r requirements.txt
+
+playwright>=1.40.0      # 通过 CDP 连接已打开的 Edge，复用登录会话
+openpyxl>=3.1.0         # 生成题库 Excel
+python-docx>=0.8.11     # 生成题库 Word（.docx）
+fonttools>=4.0.0        # 解析学习通字体加密（font-cxsecret）
+freetype-py>=2.3.0      # 渲染加密字体字形用于自动识别
+numpy>=1.24.0           # 字形匹配计算
+pillow>=9.0.0           # 字形图像处理

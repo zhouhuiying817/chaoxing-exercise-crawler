@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>学习通题库 · 离线刷题</title>
+<style>
+  :root {
+    --primary: #3b82f6;
+    --primary-dark: #2563eb;
+    --green: #16a34a;
+    --red: #dc2626;
+    --bg: #f1f5f9;
+    --card: #ffffff;
+    --text: #1e293b;
+    --muted: #64748b;
+    --border: #e2e8f0;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding-bottom: 60px;
+  }
+  header {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: #fff;
+    padding: 18px 24px;
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,.15);
+  }
+  header h1 { font-size: 20px; font-weight: 600; }
+  header p { font-size: 12px; opacity: .85; margin-top: 4px; }
+  .toolbar {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 16px; margin: 16px auto 0;
+    max-width: 960px;
+  }
+  .toolbar .stat { font-size: 13px; color: var(--muted); }
+  .toolbar .stat b { color: var(--text); }
+  .btn {
+    border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer;
+    font-size: 13px; background: #eef2ff; color: var(--primary-dark);
+    transition: all .15s; font-family: inherit;
+  }
+  .btn:hover { background: #e0e7ff; }
+  .btn.active { background: var(--primary); color: #fff; }
+  .btn.primary { background: var(--primary); color: #fff; }
+  .btn.primary:hover { background: var(--primary-dark); }
+  .btn.danger { background: #fef2f2; color: var(--red); }
+  .btn.danger:hover { background: #fee2e2; }
+  .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .btn.ghost:hover { background: var(--bg); }
+  #fileInput { display: none; }
+  .drop-zone {
+    max-width: 960px; margin: 20px auto 0; padding: 60px 20px; text-align: center;
+    border: 2px dashed #94a3b8; border-radius: 16px; background: var(--card);
+    color: var(--muted); cursor: pointer; transition: all .2s;
+  }
+  .drop-zone:hover, .drop-zone.dragover { border-color: var(--primary); color: var(--primary); background: #eff6ff; }
+  .drop-zone .big { font-size: 40px; display: block; margin-bottom: 10px; }
+  .drop-zone p { font-size: 15px; margin-bottom: 6px; }
+  .drop-zone small { font-size: 12px; }
+  .container { max-width: 960px; margin: 16px auto 0; padding: 0 16px; }
+  .q-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.05);
+  }
+  .q-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .tag {
+    font-size: 12px; padding: 2px 10px; border-radius: 20px; color: #fff; font-weight: 600;
+  }
+  .tag.single { background: #3b82f6; }
+  .tag.multi  { background: #8b5cf6; }
+  .tag.judge  { background: #f59e0b; }
+  .tag.other  { background: #64748b; }
+  .q-source { font-size: 12px; color: var(--muted); }
+  .q-stem { font-size: 15px; line-height: 1.7; margin-bottom: 12px; font-weight: 500; }
+  .opts { display: grid; gap: 8px; }
+  .opt {
+    display: flex; align-items: flex-start; gap: 10px; width: 100%; text-align: left;
+    border: 1.5px solid var(--border); border-radius: 10px; padding: 10px 14px;
+    background: #f8fafc; cursor: pointer; font-size: 14px; line-height: 1.6;
+    transition: all .15s; font-family: inherit; color: var(--text);
+  }
+  .opt:hover { border-color: var(--primary); background: #eff6ff; }
+  .opt .letter { font-weight: 700; color: var(--primary-dark); flex-shrink: 0; }
+  .opt.selected { border-color: var(--primary); background: #dbeafe; }
+  .opt.correct { border-color: var(--green); background: #dcfce7; }
+  .opt.wrong { border-color: var(--red); background: #fee2e2; }
+  .opt:disabled { cursor: not-allowed; }
+  .opt input[type="checkbox"] { margin-top: 4px; accent-color: var(--primary); }
+  .q-actions { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .result-msg { font-size: 14px; font-weight: 600; margin-top: 12px; }
+  .result-msg.ok { color: var(--green); }
+  .result-msg.no { color: var(--red); }
+  .analysis {
+    margin-top: 12px; padding: 12px 14px; border-radius: 10px; background: #f0f9ff;
+    border: 1px solid #bae6fd; font-size: 13px; line-height: 1.7; display: none;
+  }
+  .analysis.show { display: block; }
+  .analysis b { color: var(--primary-dark); }
+  .analysis .ans { color: var(--green); font-weight: 600; }
+  .empty { text-align: center; color: var(--muted); padding: 60px 0; font-size: 14px; }
+  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 30px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📚 学习通题库 · 离线刷题</h1>
+  <p>纯本地运行：数据不出本机 · 支持错题本与题型筛选</p>
+</header>
+
+<div class="toolbar" id="toolbar" style="display:none;">
+  <span class="stat">共 <b id="stTotal">0</b> 题</span>
+  <span class="stat">已答 <b id="stDone">0</b></span>
+  <span class="stat">正确率 <b id="stRate">-</b></span>
+  <span style="flex:1"></span>
+  <button class="btn active" data-filter="all">全部</button>
+  <button class="btn" data-filter="单选">单选</button>
+  <button class="btn" data-filter="多选">多选</button>
+  <button class="btn" data-filter="判断">判断</button>
+  <button class="btn" data-filter="wrong">❌ 错题本 (<span id="wrongCount">0</span>)</button>
+  <button class="btn ghost" id="btnReset">重置进度</button>
+  <button class="btn ghost" id="btnLoadAnother">换题库</button>
+</div>
+
+<div class="drop-zone" id="dropZone">
+  <span class="big">📄</span>
+  <p>点击选择，或拖拽题库文件到此处</p>
+  <small>支持 Excel(.xlsx) / TXT(.txt) / Word(.docx)，由 crawler/main.py 生成，存放在 output 文件夹</small>
+</div>
+<input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.txt,.docx">
+
+<div class="container" id="questionList"></div>
+
+<footer>学习通题库 · 离线刷题系统 —— 数据仅保存在浏览器本地（localStorage），关闭页面不丢失错题记录</footer>
+
+<script src="xlsx.full.min.js"></script>
+<script src="mammoth.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+ * 全局状态
+ * ============================================================ */
+var bank = [];            // 当前题库（原始数组）
+var filter = "all";       // 当前筛选：all / 单选 / 多选 / 判断 / wrong
+var progressKey = "cx_practice_progress_v1"; // 答题记录 key
+var wrongKey = "cx_practice_wrong_v1";       // 错题本 key
+
+/* ============================================================
+ * 本地存储工具
+ * ============================================================ */
+function loadJSON(key) {
+  try { return JSON.parse(localStorage.getItem(key)) || null; }
+  catch (e) { return null; }
+}
+function saveJSON(key, obj) {
+  localStorage.setItem(key, JSON.stringify(obj));
+}
+
+/* 答题记录：{ "题干": {answer:"A", correct:true|false, ts:...} } */
+function getProgress() { return loadJSON(progressKey) || {}; }
+function saveProgress(p) { saveJSON(progressKey, p); }
+/* 错题本：[ {q: 题目对象, myAnswer: "...", ts: ...} ] */
+function getWrong() { return loadJSON(wrongKey) || []; }
+function saveWrong(w) { saveJSON(wrongKey, w); }
+
+/* ============================================================
+ * 题目唯一标识（用题干文本）
+ * ============================================================ */
+function qKey(q) { return (q.stem || "") + "|" + (q.qtype || ""); }
+
+/* ============================================================
+ * 判断题答案归一化
+ * ============================================================ */
+function normTF(s) {
+  if (s == null) return "";
+  s = String(s).trim().toLowerCase();
+  if (["正确","对","√","是","true","t","yes","a"].indexOf(s) >= 0) return "T";
+  if (["错误","错","×","x","否","false","f","no","b"].indexOf(s) >= 0) return "F";
+  return s;
+}
+
+/* ============================================================
+ * Excel 读取（SheetJS）
+ * ============================================================ */
+function readExcel(buffer) {
+  var wb = XLSX.read(buffer, { type: "array" });
+  var ws = wb.Sheets[wb.SheetNames[0]];
+  var rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+  return rows.map(function (r) {
+    // 兼容列名带空格 / 全角冒号等
+    function col(names) {
+      for (var i = 0; i < names.length; i++) {
+        for (var k in r) {
+          if (String(k).replace(/\s/g, "").indexOf(names[i].replace(/\s/g, "")) >= 0) return r[k];
+        }
+      }
+      return "";
+    }
+    var opts = {};
+    ["A","B","C","D","E","F"].forEach(function (L) {
+      opts[L] = col(["选项" + L, L + "选项"]);
+    });
+    return {
+      course:   col(["课程名称","课程"]),
+      chapter:  col(["章节名称","章节"]),
+      qtype:    col(["题型"]),
+      stem:     col(["题干","题目","题目内容"]),
+      options:  opts,
+      answer:   col(["参考答案","答案","正确答案"]),
+      analysis: col(["解析","答案解析","讲解"])
+    };
+  }).filter(function (q) { return q.stem; });
+}
+
+/* ============================================================
+ * TXT / Word 文本解析
+ * 解析 crawler 导出的结构化文本格式：
+ *   课程名称：xxx / 章节名称：xxx
+ *   【1】【单选】题干 ...
+ *   A. 选项  B. 选项
+ *   【参考答案】A / 【解析】xxx
+ * ============================================================ */
+function parseTxt(text) {
+  var lines = String(text || "").replace(/^\uFEFF/, "").split(/\r?\n/);
+  var meta = { course: "", chapter: "" };
+  var questions = [];
+  var cur = null;
+  var inOptions = false;
+
+  function pushCur() {
+    if (cur) questions.push(cur);
+    cur = null;
+    inOptions = false;
+  }
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (!line) continue;
+
+    // 元信息
+    var mC = line.match(/^课程名称[:：]\s*(.*)$/);
+    if (mC) { meta.course = mC[1].trim(); continue; }
+    var mCh = line.match(/^章节名称[:：]\s*(.*)$/);
+    if (mCh) { meta.chapter = mCh[1].trim(); continue; }
+    if (/^=+$/.test(line)) continue; // 分隔线
+    if (/^(采集时间|题目数量)[:：]/.test(line)) continue;
+
+    // 新题开始：【1】【单选】题干 或 【1】 单选
+    var mStart = line.match(/^【(\d+)】\s*(?:【([^】]+)】)?\s*(.*)$/);
+    if (mStart) {
+      pushCur();
+      cur = {
+        course: "", chapter: "",
+        qtype: mStart[2] || "未知",
+        stem: mStart[3] || "",
+        options: {},
+        answer: "",
+        analysis: ""
+      };
+      inOptions = false;
+      continue;
+    }
+    if (!cur) continue;
+
+    // 参考答案 / 解析
+    var mA = line.match(/^【参考答案】\s*(.*)$/);
+    if (mA) { cur.answer = mA[1].trim(); inOptions = false; continue; }
+    var mAn = line.match(/^【解析】\s*(.*)$/);
+    if (mAn) { cur.analysis = mAn[1].trim(); inOptions = false; continue; }
+
+    // 选项：A. xxx / A、xxx / A: xxx
+    var mOpt = line.match(/^([A-H])[.、:：)]\s*(.*)$/);
+    if (mOpt) {
+      cur.options[mOpt[1].toUpperCase()] = mOpt[2].trim();
+      inOptions = true;
+      continue;
+    }
+
+    // 题干续行（选项出现之前）
+    if (!inOptions && Object.keys(cur.options).length === 0) {
+      cur.stem = (cur.stem ? cur.stem + " " : "") + line;
+    } else if (inOptions) {
+      // 选项内容续行：追加到上一个选项
+      var keys = Object.keys(cur.options);
+      if (keys.length) {
+        cur.options[keys[keys.length - 1]] += " " + line;
+      }
+    }
+  }
+  pushCur();
+
+  // 填充课程/章节
+  questions.forEach(function (q) {
+    if (!q.course) q.course = meta.course;
+    if (!q.chapter) q.chapter = meta.chapter;
+  });
+  return questions;
+}
+
+/* Word(.docx)：用 mammoth 转成 HTML 后提取文本，再按 TXT 格式解析 */
+function parseDocx(buffer, callback) {
+  if (typeof mammoth === "undefined") {
+    callback(null, new Error("缺少 mammoth.min.js，请确认该文件与 index.html 在同一目录"));
+    return;
+  }
+  mammoth.convertToHtml({ arrayBuffer: buffer })
+    .then(function (result) {
+      var div = document.createElement("div");
+      div.innerHTML = result.value;
+      var text = div.innerText || div.textContent || "";
+      callback(parseTxt(text), null);
+    })
+    .catch(function (err) { callback(null, err); });
+}
+
+/* ============================================================
+ * 渲染
+ * ============================================================ */
+function visibleList() {
+  if (filter === "all") return bank;
+  if (filter === "wrong") {
+    var wrong = getWrong();
+    var set = {};
+    wrong.forEach(function (w) { set[qKey(w.q)] = w; });
+    var out = [];
+    bank.forEach(function (q) { if (set[qKey(q)]) out.push(q); });
+    return out;
+  }
+  return bank.filter(function (q) { return q.qtype === filter; });
+}
+
+function tagClass(t) {
+  if (t === "单选") return "single";
+  if (t === "多选") return "multi";
+  if (t === "判断") return "judge";
+  return "other";
+}
+
+function isJudge(q) { return q.qtype === "判断"; }
+
+/* 判断题若选项为空，使用“正确/错误”作为内置选项 */
+function effectiveOptions(q) {
+  if (isJudge(q)) {
+    var has = (q.options.A || q.options.B);
+    if (!has) return { A: "正确", B: "错误" };
+  }
+  return q.options;
+}
+
+/* 判分：返回 {ok, correctAnswer} */
+function judge(q, selectedLetters, selectedTexts) {
+  var ans = String(q.answer || "").trim();
+  if (isJudge(q)) {
+    // 判断：答案可能是中文或字母
+    if (/^[A-H]$/i.test(ans)) {
+      var letter = selectedLetters[0];
+      return { ok: letter && letter.toUpperCase() === ans.toUpperCase() };
+    }
+    // 中文答案：比较“正确/错误”
+    var selText = normTF(selectedTexts[0]);
+    var ansText = normTF(ans);
+    return { ok: !!selText && selText === ansText };
+  }
+  if (q.qtype === "多选") {
+    // 多选：集合比较（排序后拼接）
+    var sa = selectedLetters.slice().sort().join("");
+    var aa = ans.toUpperCase().replace(/[^A-H]/g, "").split("").sort().join("");
+    return { ok: sa.length > 0 && sa === aa };
+  }
+  // 单选：唯一选中
+  var letter = selectedLetters[0];
+  return { ok: !!letter && letter.toUpperCase() === ans.toUpperCase() };
+}
+
+function render() {
+  var list = visibleList();
+  var wrongSet = {};
+  getWrong().forEach(function (w) { wrongSet[qKey(w.q)] = w; });
+
+  var container = document.getElementById("questionList");
+  container.innerHTML = "";
+  if (list.length === 0) {
+    container.innerHTML = '<div class="empty">' +
+      (filter === "wrong" ? "错题本是空的，继续保持！ 🎉" : "当前筛选下没有题目") +
+      "</div>";
+    return;
+  }
+  list.forEach(function (q, idx) {
+    container.appendChild(buildCard(q, idx, wrongSet));
+  });
+  updateStats();
+}
+
+function buildCard(q, idx, wrongSet) {
+  var card = document.createElement("div");
+  card.className = "q-card";
+
+  // 头部：题型标签 + 来源
+  var head = document.createElement("div");
+  head.className = "q-head";
+  var tag = document.createElement("span");
+  tag.className = "tag " + tagClass(q.qtype);
+  tag.textContent = q.qtype || "未知";
+  var src = document.createElement("span");
+  src.className = "q-source";
+  var srcText = [];
+  if (q.course) srcText.push(q.course);
+  if (q.chapter) srcText.push(q.chapter);
+  src.textContent = srcText.join(" · ") || "";
+  var wTag = document.createElement("span");
+  wTag.className = "tag other";
+  wTag.textContent = "❌ 错题";
+  wTag.style.display = wrongSet[qKey(q)] ? "" : "none";
+  head.appendChild(tag);
+  head.appendChild(src);
+  head.appendChild(wTag);
+  head.appendChild(document.createElement("span"));
+  head.lastChild.style.flex = "1";
+  var no = document.createElement("span");
+  no.className = "q-source";
+  no.textContent = "第 " + (idx + 1) + " 题";
+  head.appendChild(no);
+  card.appendChild(head);
+
+  // 题干
+  var stem = document.createElement("div");
+  stem.className = "q-stem";
+  stem.textContent = q.stem;
+  card.appendChild(stem);
+
+  // 选项
+  var opts = effectiveOptions(q);
+  var optsBox = document.createElement("div");
+  optsBox.className = "opts";
+  var selected = {};   // 已选字母
+  var submitted = false; // 是否已判定（多选提交后才判定）
+  var optEls = {};
+
+  Object.keys(opts).forEach(function (L) {
+    if (!opts[L]) return;
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "opt";
+    btn.dataset.letter = L;
+    btn.innerHTML = '<span class="letter">' + L + '</span><span>' + escapeHtml(opts[L]) + "</span>";
+
+    // 多选：复选风格
+    if (q.qtype === "多选") {
+      var cb = document.createElement("input");
+      cb.type = "checkbox";
+      btn.prepend(cb);
+      btn.addEventListener("click", function () {
+        if (submitted) return;
+        selected[L] = !selected[L];
+        btn.classList.toggle("selected", !!selected[L]);
+        cb.checked = !!selected[L];
+      });
+    } else {
+      // 单选 / 判断：点击立即判定
+      btn.addEventListener("click", function () {
+        if (submitted) return;
+        submitOnce([L], [opts[L]]);
+      });
+    }
+    optsBox.appendChild(btn);
+    optEls[L] = btn;
+  });
+  card.appendChild(optsBox);
+
+  // 操作区
+  var actions = document.createElement("div");
+  actions.className = "q-actions";
+  if (q.qtype === "多选") {
+    var subBtn = document.createElement("button");
+    subBtn.className = "btn primary";
+    subBtn.textContent = "提交答案";
+    subBtn.addEventListener("click", function () {
+      if (submitted) return;
+      var letters = Object.keys(selected).filter(function (L) { return selected[L]; });
+      var texts = letters.map(function (L) { return opts[L]; });
+      if (letters.length === 0) { subBtn.textContent = "请先选择至少一个选项"; return; }
+      submitOnce(letters, texts);
+    });
+    actions.appendChild(subBtn);
+  }
+  var ansBtn = document.createElement("button");
+  ansBtn.className = "btn ghost";
+  ansBtn.textContent = "查看答案与解析";
+  ansBtn.addEventListener("click", function () {
+    analysisBox.classList.toggle("show");
+    ansBtn.textContent = analysisBox.classList.contains("show") ? "收起答案与解析" : "查看答案与解析";
+  });
+  actions.appendChild(ansBtn);
+  card.appendChild(actions);
+
+  // 判定结果与解析
+  var resultMsg = document.createElement("div");
+  resultMsg.className = "result-msg";
+  card.appendChild(resultMsg);
+
+  var analysisBox = document.createElement("div");
+  analysisBox.className = "analysis";
+  var ansHtml = "";
+  if (q.answer) {
+    ansHtml = "<b>参考答案：</b><span class='ans'>" + escapeHtml(q.answer) + "</span>";
+  }
+  if (q.analysis) {
+    ansHtml += "<br><b>解析：</b>" + escapeHtml(q.analysis);
+  }
+  analysisBox.innerHTML = ansHtml || "<i>本题未提供答案或解析</i>";
+  card.appendChild(analysisBox);
+
+  // 提交判分（单选/判断点击即触发；多选点提交触发）
+  function submitOnce(letters, texts) {
+    submitted = true;
+    var res = judge(q, letters, texts);
+    var correctAnswer = String(q.answer || "").trim();
+    // 界面标记
+    if (res.ok) {
+      resultMsg.className = "result-msg ok";
+      resultMsg.textContent = "✅ 回答正确！";
+      letters.forEach(function (L) { if (optEls[L]) optEls[L].classList.add("correct"); });
+      if (correctAnswer) markAnswerOptions(correctAnswer, "correct");
+    } else {
+      resultMsg.className = "result-msg no";
+      resultMsg.textContent = "❌ 回答错误，正确答案：" + (correctAnswer || "未提供");
+      letters.forEach(function (L) { if (optEls[L]) optEls[L].classList.add("wrong"); });
+      if (correctAnswer) markAnswerOptions(correctAnswer, "correct");
+    }
+    // 禁用选项
+    Object.keys(optEls).forEach(function (L) { optEls[L].disabled = true; });
+
+    // 记录进度
+    var prog = getProgress();
+    prog[qKey(q)] = { answer: letters.join(""), correct: res.ok, ts: Date.now() };
+    saveProgress(prog);
+
+    // 维护错题本
+    var wrong = getWrong().filter(function (w) { return qKey(w.q) !== qKey(q); });
+    if (!res.ok) {
+      wrong.unshift({ q: q, myAnswer: letters.join(""), ts: Date.now() });
+    }
+    saveWrong(wrong);
+    document.getElementById("wrongCount").textContent = wrong.length;
+    if (wrongSet[qKey(q)]) { wrongSet[qKey(q)] = null; }
+    if (filter === "wrong" && res.ok) render(); // 在错题本视图下答对则移出
+    updateStats();
+  }
+
+  /* 高亮参考答案对应的选项 */
+  function markAnswerOptions(ans, cls) {
+    var letters = String(ans || "").toUpperCase().replace(/[^A-H]/g, "");
+    if (isJudge(q) && !letters) {
+      // 判断题中文答案 -> 定位“正确/错误”选项
+      var t = normTF(ans);
+      var letter = t === "T" ? "A" : "B";
+      if (optEls[letter]) optEls[letter].classList.add(cls);
+      return;
+    }
+    letters.split("").forEach(function (L) { if (optEls[L]) optEls[L].classList.add(cls); });
+  }
+
+  return card;
+}
+
+function updateStats() {
+  var prog = getProgress();
+  var done = 0, correct = 0;
+  bank.forEach(function (q) {
+    var r = prog[qKey(q)];
+    if (r) { done++; if (r.correct) correct++; }
+  });
+  document.getElementById("stTotal").textContent = bank.length;
+  document.getElementById("stDone").textContent = done;
+  document.getElementById("stRate").textContent = done ? Math.round(correct / done * 100) + "%" : "-";
+  document.getElementById("wrongCount").textContent = getWrong().length;
+}
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/* ============================================================
+ * 事件绑定
+ * ============================================================ */
+function loadFile(file) {
+  var name = String(file.name || "").toLowerCase();
+
+  function onBankLoaded() {
+    if (!bank || bank.length === 0) {
+      alert("未从文件中解析到题目，请确认是爬虫生成的题库文件。");
+      return;
+    }
+    document.getElementById("toolbar").style.display = "flex";
+    document.getElementById("dropZone").style.display = "none";
+    document.title = "学习通题库 · " + bank.length + " 题";
+    render();
+  }
+
+  // --- TXT：按文本解析 ---
+  if (name.endsWith(".txt")) {
+    var rt = new FileReader();
+    rt.onload = function (e) {
+      try { bank = parseTxt(e.target.result); onBankLoaded(); }
+      catch (err) { alert("解析 TXT 失败：" + err.message); console.error(err); }
+    };
+    rt.readAsText(file, "utf-8");
+    return;
+  }
+
+  // --- Word：mammoth 转文本后解析 ---
+  if (name.endsWith(".docx")) {
+    var rd = new FileReader();
+    rd.onload = function (e) {
+      parseDocx(e.target.result, function (qs, err) {
+        if (err || !qs || qs.length === 0) {
+          alert("解析 Word 失败：" + (err ? err.message : "未解析到题目"));
+          return;
+        }
+        bank = qs;
+        onBankLoaded();
+      });
+    };
+    rd.readAsArrayBuffer(file);
+    return;
+  }
+
+  // --- Excel / CSV：SheetJS 解析 ---
+  var reader = new FileReader();
+  reader.onload = function (e) {
+    try {
+      bank = readExcel(new Uint8Array(e.target.result));
+      onBankLoaded();
+    } catch (err) {
+      alert("解析 Excel 失败：" + err.message + "\n请确认选择的是题库 xlsx 文件。");
+      console.error(err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+document.getElementById("dropZone").addEventListener("click", function () {
+  document.getElementById("fileInput").click();
+});
+document.getElementById("fileInput").addEventListener("change", function (e) {
+  if (e.target.files[0]) loadFile(e.target.files[0]);
+});
+/* 拖拽导入 */
+var dz = document.getElementById("dropZone");
+["dragover", "dragenter"].forEach(function (ev) {
+  dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.add("dragover"); });
+});
+["dragleave", "drop"].forEach(function (ev) {
+  dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.remove("dragover"); });
+});
+dz.addEventListener("drop", function (e) {
+  var f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) loadFile(f);
+});
+
+/* 筛选按钮 */
+document.querySelectorAll("#toolbar .btn[data-filter]").forEach(function (b) {
+  b.addEventListener("click", function () {
+    document.querySelectorAll("#toolbar .btn[data-filter]").forEach(function (x) { x.classList.remove("active"); });
+    b.classList.add("active");
+    filter = b.dataset.filter;
+    render();
+  });
+});
+
+/* 重置进度：清空答题记录与错题本 */
+document.getElementById("btnReset").addEventListener("click", function () {
+  if (!confirm("确定清空所有答题记录和错题本吗？此操作不可恢复。")) return;
+  localStorage.removeItem(progressKey);
+  localStorage.removeItem(wrongKey);
+  render();
+  updateStats();
+});
+
+/* 换题库 */
+document.getElementById("btnLoadAnother").addEventListener("click", function () {
+  if (!confirm("切换题库将保留已答题记录（按题干自动匹配）。确定继续？")) return;
+  document.getElementById("fileInput").click();
+});
+</script>
+</body>
+</html>

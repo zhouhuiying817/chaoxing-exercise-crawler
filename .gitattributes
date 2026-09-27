@@ -1,0 +1,10 @@
+# Windows 批处理脚本固定 CRLF（否则 cmd 可能解析异常）
+*.bat text eol=crlf
+# 其余文本文件统一 LF
+*.py text eol=lf
+*.md text eol=lf
+*.html text eol=lf
+*.js text eol=lf
+*.css text eol=lf
+*.txt text eol=lf
+*.json text eol=lf
