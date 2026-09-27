@@ -136,6 +136,8 @@
   <button class="btn" data-filter="wrong">❌ 错题本 (<span id="wrongCount">0</span>)</button>
   <button class="btn ghost" id="btnLoadImages" style="display:none;">🖼️ 选择图片文件夹</button>
   <span class="img-hint" id="imgStatus"></span>
+  <button class="btn ghost" id="btnShuffle">🔀 乱序</button>
+  <button class="btn ghost" id="btnExportWrong">📤 导出错题</button>
   <button class="btn ghost" id="btnReset">重置进度</button>
   <button class="btn ghost" id="btnLoadAnother">换题库</button>
 </div>
@@ -162,6 +164,8 @@
  * 全局状态
  * ============================================================ */
 var bank = [];            // 当前题库（原始数组）
+var bankOriginal = null;  // 题库原始顺序（乱序开启前保存，用于恢复）
+var shuffleOn = false;    // 是否处于乱序状态
 var filter = "all";       // 当前筛选：all / 单选 / 多选 / 判断 / wrong
 var progressKey = "cx_practice_progress_v1"; // 答题记录 key
 var wrongKey = "cx_practice_wrong_v1";       // 错题本 key
@@ -630,6 +634,72 @@ function escapeHtml(s) {
 }
 
 /* ============================================================
+ * 乱序刷题（Fisher-Yates 洗牌）
+ * ============================================================ */
+function shuffleArray(arr) {
+  for (var i = arr.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  }
+  return arr;
+}
+function toggleShuffle() {
+  var btn = document.getElementById("btnShuffle");
+  if (!shuffleOn) {
+    shuffleArray(bank);
+    btn.classList.add("active");
+    btn.textContent = "🔀 乱序中(点击恢复)";
+  } else {
+    if (bankOriginal) bank = bankOriginal.slice();
+    btn.classList.remove("active");
+    btn.textContent = "🔀 乱序";
+  }
+  shuffleOn = !shuffleOn;
+  render();
+}
+
+/* ============================================================
+ * 导出错题：把错题本导出为 TXT 题库文件（与爬虫 TXT 格式一致，
+ * 可直接再次导入本页面继续刷）
+ * ============================================================ */
+function downloadTxt(filename, text) {
+  var blob = new Blob(["\uFEFF" + text], { type: "text/plain;charset=utf-8" });
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+function exportWrong() {
+  var wrong = getWrong();
+  if (!wrong.length) { alert("错题本是空的，无需导出。"); return; }
+  var qs = wrong.map(function (w) { return w.q; });
+  var lines = [];
+  if (qs.length) {
+    lines.push("课程名称：" + (qs[0].course || ""));
+    lines.push("章节名称：" + (qs[0].chapter || ""));
+  }
+  lines.push("题目数量：" + qs.length);
+  lines.push("=".repeat(50));
+  qs.forEach(function (q, i) {
+    lines.push("");
+    lines.push("【" + (i + 1) + "】【" + (q.qtype || "未知") + "】");
+    lines.push(q.stem || "");
+    ["A", "B", "C", "D", "E", "F", "G", "H"].forEach(function (L) {
+      if (q.options && q.options[L]) lines.push(L + ". " + q.options[L]);
+    });
+    if (q.answer) lines.push("【参考答案】" + q.answer);
+    if (q.analysis) lines.push("【解析】" + q.analysis);
+  });
+  var d = new Date();
+  function p(n) { return (n < 10 ? "0" : "") + n; }
+  var fname = "错题_" + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) +
+              "_" + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + ".txt";
+  downloadTxt(fname, lines.join("\n"));
+}
+
+/* ============================================================
  * 事件绑定
  * ============================================================ */
 function loadFile(file) {
@@ -643,6 +713,12 @@ function loadFile(file) {
     document.getElementById("toolbar").style.display = "flex";
     document.getElementById("dropZone").style.display = "none";
     document.title = "学习通题库 · " + bank.length + " 题";
+    // 新题库默认按原始顺序展示，重置乱序状态
+    bankOriginal = bank.slice();
+    shuffleOn = false;
+    var shuffleBtn = document.getElementById("btnShuffle");
+    shuffleBtn.classList.remove("active");
+    shuffleBtn.textContent = "🔀 乱序";
     // 检测题库是否含图片标注，给出提示
     var hasImg = bank.some(function (q) {
       var s = (q.stem || "") + "|" + (q.analysis || "");
@@ -733,6 +809,10 @@ document.querySelectorAll("#toolbar .btn[data-filter]").forEach(function (b) {
     render();
   });
 });
+
+/* 乱序 / 导出错题 */
+document.getElementById("btnShuffle").addEventListener("click", toggleShuffle);
+document.getElementById("btnExportWrong").addEventListener("click", exportWrong);
 
 /* 重置进度：清空答题记录与错题本 */
 document.getElementById("btnReset").addEventListener("click", function () {

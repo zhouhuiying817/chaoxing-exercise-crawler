@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: pip install -r crawler/requirements.txt
+
+      # 网页/折叠答案测试需要真实浏览器（Playwright channel=msedge 无头模式）
+      - name: Install Microsoft Edge (stable)
+        run: |
+          curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-edge.gpg
+          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-edge.gpg] https://packages.microsoft.com/repos/edge stable main" | sudo tee /etc/apt/sources.list.d/microsoft-edge.list
+          sudo apt-get update
+          sudo apt-get install -y microsoft-edge-stable
+
+      - name: Run all tests
+        run: |
+          cd tests
+          python test_parser.py
+          python test_fold.py
+          python test_export.py
+          python test_export3.py
+          python test_web.py
+          python test_web3.py
+          python test_web4.py

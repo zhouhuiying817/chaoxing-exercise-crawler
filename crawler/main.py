@@ -26,8 +26,9 @@
   - 已安装依赖：pip install -r requirements.txt
 
 用法：
-  python main.py                  # 交互式粘贴 URL
-  python main.py "https://..."    # 直接传 URL 参数
+  python main.py                  # 交互式粘贴 URL（可一次粘贴多个，每行一个，空行结束）
+  python main.py "https://..."    # 直接传 1 个 URL 参数
+  python main.py "url1" "url2"    # 直接传多个 URL 参数，逐个批量采集
 """
 
 import asyncio
@@ -1230,42 +1231,22 @@ def export_excel(questions: List[Dict], basename: Optional[str] = None) -> Path:
 # ---------------------------------------------------------------------------
 # 主流程
 # ---------------------------------------------------------------------------
-async def crawl_url(url: str) -> int:
+async def _crawl_one(context, url: str) -> int:
     """
-    采集单个 URL 页面中的习题，写入 Excel。
-    返回采集到的题目数量。
+    在已连接的浏览器上下文中采集单个 URL 页面中的习题并导出三格式文件。
+    返回采集到的题目数量（失败返回 0）。供 crawl_url / crawl_urls 复用。
     """
-    async with async_playwright() as p:
-        logger.info(f"正在连接本机 Edge 调试端口 {CDP_URL} ...")
-        try:
-            browser = await p.chromium.connect_over_cdp(CDP_URL)
-        except Exception as exc:
-            logger.error(
-                f"连接 Edge 失败：{exc}\n"
-                f"请确认已用远程调试模式启动 Edge（详见 README.md），"
-                f"或双击 start_edge_debug.bat 一键启动。"
-            )
-            return 0
+    # 新建一个标签页打开目标 URL（不干扰用户已打开的页面）
+    page = await context.new_page()
+    try:
+        logger.info(f"正在打开页面：{url}")
+        await page.goto(url, timeout=60_000, wait_until="domcontentloaded")
+    except Exception as exc:
+        logger.error(f"打开页面失败：{exc}")
+        await page.close()
+        return 0
 
-        # 复用已有浏览器上下文（含学习通登录 Cookie）
-        if not browser.contexts:
-            logger.error("调试端口上没有可用的浏览器上下文，请确认 Edge 已登录学习通")
-            await browser.close()
-            return 0
-        context = browser.contexts[0]
-        logger.info(f"已复用 Edge 登录会话（contexts={len(browser.contexts)}）")
-
-        # 新建一个标签页打开目标 URL（不干扰用户已打开的页面）
-        page = await context.new_page()
-        try:
-            logger.info(f"正在打开页面：{url}")
-            await page.goto(url, timeout=60_000, wait_until="domcontentloaded")
-        except Exception as exc:
-            logger.error(f"打开页面失败：{exc}")
-            await page.close()
-            await browser.close()
-            return 0
-
+    try:
         # 等待页面与 iframe 内容渲染
         await wait_random(WAIT_BASE_MIN, WAIT_BASE_MAX)
 
@@ -1287,8 +1268,6 @@ async def crawl_url(url: str) -> int:
             title = await page.title()
             logger.error(f"页面标题：{title}")
             logger.error(f"页面 URL：{page.url}")
-            await page.close()
-            await browser.close()
             return 0
 
         # 提取课程/章节信息并解析题目
@@ -1308,9 +1287,6 @@ async def crawl_url(url: str) -> int:
         if questions:
             questions = await download_media(context, questions, base)
 
-        await page.close()
-        await browser.close()
-
         if not questions:
             logger.error("解析到 0 题，未生成题库文件。")
             return 0
@@ -1326,30 +1302,98 @@ async def crawl_url(url: str) -> int:
         logger.info(f"  Word ：{word_path}")
         logger.info("=" * 60)
         return len(questions)
+    except Exception as exc:
+        logger.exception(f"采集该页面时发生未预期异常：{exc}")
+        return 0
+    finally:
+        await page.close()
+
+
+async def _connect_and_run(urls: List[str]) -> int:
+    """连接本机调试 Edge，逐个采集 URL 列表中的页面，返回总题目数量。"""
+    logger.info(f"正在连接本机 Edge 调试端口 {CDP_URL} ...")
+    try:
+        async with async_playwright() as p:
+            try:
+                browser = await p.chromium.connect_over_cdp(CDP_URL)
+            except Exception as exc:
+                logger.error(
+                    f"连接 Edge 失败：{exc}\n"
+                    f"请确认已用远程调试模式启动 Edge（详见 README.md），"
+                    f"或双击 start_edge_debug.bat 一键启动。"
+                )
+                return 0
+
+            # 复用已有浏览器上下文（含学习通登录 Cookie）
+            if not browser.contexts:
+                logger.error("调试端口上没有可用的浏览器上下文，请确认 Edge 已登录学习通")
+                await browser.close()
+                return 0
+            context = browser.contexts[0]
+            logger.info(f"已复用 Edge 登录会话（contexts={len(browser.contexts)}）")
+
+            total = 0
+            for i, url in enumerate(urls, start=1):
+                logger.info("-" * 60)
+                logger.info(f"正在采集 [{i}/{len(urls)}]：{url}")
+                count = await _crawl_one(context, url)
+                total += count
+                if count == 0:
+                    logger.warning(f"第 {i} 个页面采集失败（继续处理下一个）")
+                # 页面之间留出间隔，模拟人工节奏
+                await wait_random(1.5, 3.0)
+
+            await browser.close()
+            return total
+    except Exception as exc:
+        logger.exception(f"批量采集异常：{exc}")
+        return 0
+
+
+async def crawl_url(url: str) -> int:
+    """采集单个 URL 页面中的习题（单 URL 入口保持不变），返回题目数量。"""
+    return await _connect_and_run([url])
+
+
+async def crawl_urls(urls: List[str]) -> int:
+    """批量采集多个 URL 页面（每个 URL 均为用户显式提供，不自动遍历），
+    一次连接浏览器逐个处理，返回总题目数量。"""
+    return await _connect_and_run(urls)
 
 
 async def main():
-    # 解析 URL：优先命令行参数，否则交互输入
-    url = ""
+    # 解析 URL 列表：优先命令行参数（可传多个），否则交互输入（每行一个，空行结束）
+    urls: List[str] = []
     if len(sys.argv) > 1:
-        url = sys.argv[1].strip()
+        urls = [u.strip() for u in sys.argv[1:] if u.strip()]
     else:
         try:
-            url = input("请粘贴要采集的学习通习题页面 URL（回车开始）：").strip()
+            print("请粘贴要采集的学习通习题页面 URL（可一次粘贴多个，每行一个；")
+            print("输完直接按回车结束）：")
+            while True:
+                line = input().strip()
+                if not line:
+                    break
+                urls.append(line)
         except EOFError:
-            url = ""
+            pass
 
-    if not url:
+    if not urls:
         logger.error("未输入 URL，程序退出。")
         return
 
-    # 校验 URL 基本合法性
-    if not url.startswith(("http://", "https://")):
-        logger.warning("URL 格式异常，仍将尝试访问。")
-    if "chaoxing.com" not in url:
-        logger.warning("该 URL 不是学习通（chaoxing.com）域名，解析可能失败。")
+    # 校验 URL 基本合法性（批量时逐条警告，不阻断）
+    for u in urls:
+        if not u.startswith(("http://", "https://")):
+            logger.warning(f"URL 格式异常，仍将尝试访问：{u}")
+        if "chaoxing.com" not in u:
+            logger.warning(f"该 URL 不是学习通（chaoxing.com）域名，解析可能失败：{u}")
 
-    count = await crawl_url(url)
+    if len(urls) == 1:
+        count = await crawl_url(urls[0])
+    else:
+        count = await crawl_urls(urls)
+        logger.info(f"批量采集结束：共处理 {len(urls)} 个页面，合计 {count} 题")
     if count == 0:
         sys.exit(1)
 
