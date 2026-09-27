@@ -17,7 +17,7 @@ env/
 .vscode/
 
 # ---------- 测试运行产物 ----------
-tests/sample_bank.xlsx
+tests/sample_bank*.xlsx
 tests/*.tmp
 
 # ---------- 临时文件 ----------
