@@ -754,6 +754,64 @@ async def build_cx_font_map(frame) -> Dict[int, str]:
         return dict(CX_FONT_MAP)
 
 
+# ---------------------------------------------------------------------------
+# 折叠答案展开（部分作业/测验的“参考答案/解析”默认折叠，需点击才显示）
+# ---------------------------------------------------------------------------
+# 按钮文本包含这些关键词时视为“展开答案”按钮（匹配小写）
+_ANSWER_BTN_INCLUDE = ("查看答案", "查看解析", "答案解析", "展开答案",
+                       "查看答案与解析", "showanswer", "viewanswer")
+# 出现这些词的按钮绝不能点（避免误触提交/保存/收起等）
+_ANSWER_BTN_EXCLUDE = ("提交", "保存", "完成", "收起", "关闭", "返回", "交卷",
+                       "上一", "下一", "翻页")
+
+
+async def expand_hidden_answers(frame, container_sel: str) -> int:
+    """
+    点击每个题目块内的“查看答案/查看解析”类按钮，把默认折叠的答案与解析展开。
+    约束：
+      - 只在本页已渲染的题目块内点击，不翻页、不提交、不开新页面；
+      - 只点 button / 带 onclick 的元素（跳过带真实链接的 <a>，防止跳转）；
+      - 通过 JS 一次性收集候选元素（天然去重，同一元素不会被重复点击）；
+      - 文本含“提交/保存/收起”等词的按钮自动跳过。
+    返回点击次数。页面无折叠答案时返回 0（对解析结果无影响）。
+    """
+    include_list = list(_ANSWER_BTN_INCLUDE)
+    exclude_list = list(_ANSWER_BTN_EXCLUDE)
+    js = """(el, { include, exclude }) => {
+        const cands = el.querySelectorAll(
+            "button, span[onclick], div[onclick], a[onclick], " +
+            "a[href^='javascript:'], [class*='answer'], [class*='Answer']");
+        let n = 0;
+        cands.forEach((node) => {
+            const txt = (node.innerText || "").trim().toLowerCase();
+            if (!txt) return;
+            if (!include.some((k) => txt.includes(k))) return;
+            if (exclude.some((k) => txt.includes(k))) return;
+            // 跳过不可见元素（display:none / 尺寸为 0）
+            const r = node.getBoundingClientRect();
+            if (r.width === 0 && r.height === 0) return;
+            node.click();
+            n++;
+        });
+        return n;
+    }"""
+    blocks = frame.locator(container_sel)
+    total = await blocks.count()
+    clicked = 0
+    for i in range(total):
+        block = blocks.nth(i)
+        try:
+            n = await block.evaluate(js, {"include": include_list, "exclude": exclude_list})
+            if n:
+                clicked += n
+                await wait_random(0.6, 1.2)  # 点击后等待内容渲染
+        except Exception:
+            continue
+    if clicked:
+        logger.info(f"已点击展开 {clicked} 个“查看答案/解析”按钮（等待内容渲染）")
+    return clicked
+
+
 async def parse_questions(frame, container_sel: str, meta: Dict[str, str], url: str,
                           font_map: Optional[Dict[int, str]] = None) -> List[Dict]:
     """
@@ -1235,6 +1293,8 @@ async def crawl_url(url: str) -> int:
 
         # 提取课程/章节信息并解析题目
         meta = await extract_meta(page, frame, url)
+        # 部分页面“参考答案/解析”默认折叠：先点击“查看答案”类按钮展开
+        await expand_hidden_answers(frame, container_sel)
         # 检测页面字体加密并建立解码映射（正常页面自动跳过）
         font_map = await build_cx_font_map(frame)
         if font_map:

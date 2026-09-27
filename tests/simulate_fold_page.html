@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>模拟_折叠答案页面_超星学习通</title>
+</head>
+<body>
+<!-- 模拟学习通页面：部分题目的“参考答案/解析”默认折叠，需点击“查看答案”展开 -->
+<div class="crumb">Python程序设计 / 第一章测验</div>
+<iframe id="frame_content" src="about:blank" style="width:100%;height:800px;border:0;"></iframe>
+<script>
+  var doc = document.getElementById("frame_content").contentDocument;
+  doc.open(); doc.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>
+    <!-- 题1：答案/解析初始不在 DOM 中，点击“查看答案”后动态插入（模拟真实折叠/懒加载） -->
+    <div class="TiMu">
+      <div class="Zy_TItle clearfix"><div class="Zy_TItle_t">（单选题）表达式2**3的值为（）</div></div>
+      <div class="Zy_ulTop"><ul>
+        <li class="fl"><span class="before">A</span><div class="fl answer_p">6</div></li>
+        <li class="fl"><span class="before">B</span><div class="fl answer_p">8</div></li>
+        <li class="fl"><span class="before">C</span><div class="fl answer_p">9</div></li>
+        <li class="fl"><span class="before">D</span><div class="fl answer_p">4</div></li>
+      </ul></div>
+      <div class="viewAnswer" id="btn1">查看答案</div>
+      <div id="ans1"></div>
+    </div>
+    <!-- 题2：答案直接可见（无需展开） -->
+    <div class="TiMu">
+      <div class="Zy_TItle clearfix"><div class="Zy_TItle_t">（判断题）Python中列表是可变类型。</div></div>
+      <div class="Zy_ulTop"><ul>
+        <li class="fl"><span class="before">A</span><div class="fl answer_p">正确</div></li>
+        <li class="fl"><span class="before">B</span><div class="fl answer_p">错误</div></li>
+      </ul></div>
+      <div class="marking_da">正确答案：A</div>
+      <div class="marking_exam">解析：列表可增删改元素，是可变类型。</div>
+    </div>
+    <!-- 干扰按钮：含“提交/保存”等词，绝不能被点击 -->
+    <div class="TiMu">
+      <div class="Zy_TItle clearfix"><div class="Zy_TItle_t">（多选题）下列属于Python数据类型的有（）</div></div>
+      <div class="Zy_ulTop"><ul>
+        <li class="fl"><span class="before">A</span><div class="fl answer_p">列表</div></li>
+        <li class="fl"><span class="before">B</span><div class="fl answer_p">字典</div></li>
+        <li class="fl"><span class="before">C</span><div class="fl answer_p">元组</div></li>
+        <li class="fl"><span class="before">D</span><div class="fl answer_p">集合</div></li>
+      </ul></div>
+      <div class="marking_da">正确答案：ABCD</div>
+      <button class="submit-btn" onclick="window.__submitted=true">提交作业</button>
+    </div>
+    <script>
+      // 点击“查看答案”后动态插入答案与解析（模拟真实页面懒加载行为）
+      document.getElementById("btn1").addEventListener("click", function () {
+        document.getElementById("ans1").innerHTML =
+          '<div class="marking_da">正确答案：B</div>' +
+          '<div class="marking_exam">解析：2**3表示2的3次方，等于8。</div>';
+      });
+    <\/script>
+  </body></html>`);
+  doc.close();
+</script>
+</body>
+</html>
