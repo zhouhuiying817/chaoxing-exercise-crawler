@@ -70,10 +70,8 @@ pip install -r requirements.txt
 > 重要：如果使用 **VS Code** 运行（按 F5 调试），请确认终端左下角选中的
 > Python 解释器与安装依赖时用的是同一个，否则会出现
 > `ModuleNotFoundError: No module named 'playwright'`。
-> 本项目已附带 `.vscode/settings.json` 锁定解释器为
-> `D:\Apps\App_code\python\python3.12\python.exe`；
-> 若你的环境不同，在 VS Code 右下角切换解释器后，在 VS Code 终端里重新执行
-> `pip install -r requirements.txt` 即可。
+> 在 VS Code 右下角点击 Python 版本号选择解释器（选你刚才安装依赖用的那个），
+> 然后在 VS Code 终端里重新执行 `pip install -r requirements.txt` 即可。
 
 > 说明：Playwright 在本项目中只用于**连接你已经打开的 Edge 浏览器**（通过 CDP 协议），
 > **不需要**执行 `playwright install` 下载浏览器内核，也不需要执行任何登录逻辑。

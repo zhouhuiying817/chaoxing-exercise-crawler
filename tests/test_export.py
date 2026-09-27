@@ -52,9 +52,9 @@ def main():
     out = crawler.export_excel(SAMPLE_QUESTIONS)
     print(f"导出文件：{out}")
     check("文件存在", out.exists(), str(out))
-    # 新命名规则：日期_作业名称.xlsx（章节名 Unit1测验）
-    check("文件名=日期_作业名称", re.fullmatch(r"\d{8}_Unit1测验\.xlsx", out.name) is not None, out.name)
-    check("文件位于 output 目录", out.parent.name == "output", str(out.parent))
+    # 新命名规则：作业名_日期_时间.xlsx（章节名 Unit1测验）
+    check("文件名=作业名_日期_时间", re.fullmatch(r"Unit1测验_\d{8}_\d{6}\.xlsx", out.name) is not None, out.name)
+    check("文件位于“作业名_日期_时间”子文件夹", out.parent.name == out.stem, str(out.parent))
 
     wb = load_workbook(out)
     ws = wb.active
@@ -78,9 +78,10 @@ def main():
 
     print("=" * 50)
     print(f"测试结果：通过 {passed} 项，失败 {failed} 项")
-    # 清理本次测试生成的题库文件，避免污染 output 目录
+    # 清理本次测试生成的题库文件与子文件夹，避免污染 output 目录
     try:
         out.unlink()
+        out.parent.rmdir()
         print(f"已清理测试文件：{out.name}")
     except Exception:
         pass
