@@ -47,6 +47,14 @@ from openpyxl.utils import get_column_letter
 
 from playwright.async_api import async_playwright
 
+# 图片在 Word 中内嵌所需的宽度单位（docx 其余导入在 export_word 内惰性完成；
+# 模块级提供 Cm，供 _add_text_with_images 使用）
+try:
+    from docx.shared import Cm as _DOCX_CM
+    Cm = _DOCX_CM
+except Exception:  # 未安装 python-docx 时延迟报错，不影响其余功能
+    Cm = None
+
 # ---------------------------------------------------------------------------
 # 全局配置
 # ---------------------------------------------------------------------------
@@ -383,22 +391,62 @@ async def extract_meta(page, frame, url: str) -> Dict[str, str]:
 
 
 # ---------------------------------------------------------------------------
-# 页面解析：题目提取
+# 页面解析：题目提取（支持图片/公式截图）
 # ---------------------------------------------------------------------------
-async def extract_stem(block) -> str:
-    """提取题干：优先 .qtContent（作业页）与 .Zy_TItle_t / .Zy_TItle（测验页）"""
+# 图片占位符：提取文本时 <img> 被替换为 [[IMG:序号]]，下载后替换为文件名
+IMG_PLACEHOLDER_RE = re.compile(r"\[\[IMG:([^\]]+)\]\]")
+
+
+async def element_text_with_images(el):
+    """
+    提取元素内的纯文本，同时收集其中的 <img> 图片 URL。
+    图片在文本中的位置用占位符 [[IMG:序号]] 标记（序号为该元素内图片顺序）。
+    返回 (文本, 图片URL列表)。
+    """
+    try:
+        result = await el.evaluate("""(el) => {
+            const urls = [];
+            const parts = [];
+            const walk = (node) => {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    parts.push(node.textContent);
+                } else if (node.nodeType === Node.ELEMENT_NODE) {
+                    if (node.tagName === 'IMG') {
+                        // 学习通图片常懒加载：真实地址在 data-original
+                        const u = node.getAttribute('data-original')
+                                || node.getAttribute('src') || '';
+                        urls.push(u);
+                        parts.push('[[IMG:' + (urls.length - 1) + ']]');
+                    } else {
+                        node.childNodes.forEach(walk);
+                    }
+                }
+            };
+            walk(el);
+            return { text: parts.join(''), urls: urls };
+        }""")
+        # evaluate 返回 dict，显式取值（不可直接解包，避免拿到键名）
+        return str(result.get("text", "") or ""), list(result.get("urls", []) or [])
+    except Exception:
+        return "", []
+
+
+async def extract_stem_rich(block):
+    """提取题干文本与其中的图片 URL。
+    返回 (题干, 图片URL列表)；无题干元素时返回 ("", [])"""
     for sel in [".qtContent", ".Zy_TItle_t", ".Zy_TItle"]:
         try:
             el = block.locator(sel).first
             if await el.count() > 0:
-                stem = clean_text(await el.inner_text())
+                text, urls = await element_text_with_images(el)
+                stem = clean_text(text)
                 if stem:
                     # 去掉题号前缀与题型标签（如 “1. (单选题) xxx”）
                     stem = strip_type_tag(strip_question_no(stem))
-                    return stem
+                    return stem, urls
         except Exception:
             continue
-    return ""
+    return "", []
 
 
 async def extract_type(block, block_text: str, stem: str) -> str:
@@ -437,9 +485,11 @@ async def extract_type(block, block_text: str, stem: str) -> str:
     return "未知"
 
 
-async def extract_options(block, block_text: str) -> Dict[str, str]:
-    """提取选项，返回 {A: 内容, B: 内容, ...}"""
+async def extract_options_rich(block, block_text: str):
+    """提取选项与其中的图片 URL。
+    返回 ({A: 内容, B: ...}, {A: [图片URL...], ...})"""
     options: Dict[str, str] = {}
+    opt_imgs: Dict[str, List[str]] = {}
     # 1) DOM 提取：优先作业页 .qtDetail li，其次测验页 .Zy_ulTop li
     li_candidates = [".qtDetail li", ".Zy_ulTop li", ".Zy_ulTop ul li", "ul li.fl"]
     for sel in li_candidates:
@@ -448,25 +498,30 @@ async def extract_options(block, block_text: str) -> Dict[str, str]:
             n = await li_list.count()
             if n > 0:
                 options = {}
+                opt_imgs = {}
                 for idx in range(n):
                     li = li_list.nth(idx)
-                    txt = clean_text(await li.inner_text())
+                    text, urls = await element_text_with_images(li)
+                    txt = clean_text(text)
                     m = re.match(r"^([A-Ha-h])\s*[.、:：)]?\s*(.*)$", txt, re.S)
                     if m:
                         letter = m.group(1).upper()
                         content = clean_text(m.group(2))
                         if content:
                             options[letter] = content
+                            opt_imgs[letter] = urls
                 if len(options) >= 2:
-                    return options
+                    return options, opt_imgs
         except Exception:
             continue
-    # 2) 文本正则兜底
+    # 2) 文本正则兜底（无图片）
     if len(options) < 2:
         parsed = parse_options(block_text)
         for idx, content in enumerate(parsed):
-            options[chr(ord("A") + idx)] = content
-    return options
+            letter = chr(ord("A") + idx)
+            options[letter] = content
+            opt_imgs.setdefault(letter, [])
+    return options, opt_imgs
 
 
 async def extract_answer(block, block_text: str, qtype: str, options: Dict[str, str]) -> str:
@@ -507,8 +562,8 @@ async def extract_answer(block, block_text: str, qtype: str, options: Dict[str, 
     return ""
 
 
-async def extract_analysis(block, block_text: str) -> str:
-    """提取解析（讲解）：class 优先，正则兜底"""
+async def extract_analysis_rich(block, block_text: str):
+    """提取解析（讲解）与其中的图片 URL。返回 (解析, 图片URL列表)"""
     analysis_selectors = [
         ".qtAnalysis",
         ".marking_exam",
@@ -519,17 +574,18 @@ async def extract_analysis(block, block_text: str) -> str:
         try:
             el = block.locator(sel).first
             if await el.count() > 0:
-                txt = clean_text(await el.inner_text())
+                text, urls = await element_text_with_images(el)
+                txt = clean_text(text)
                 if txt:
                     # 去掉“答案解析：”等前缀
                     txt = re.sub(r"^(?:答案解析|解析|讲解)\s*[:：]?\s*", "", txt)
-                    return txt[:500]
+                    return txt[:500], urls
         except Exception:
             continue
     m = re.search(r"(?:解析|答案解析|讲解)\s*[:：]?\s*(.+)", block_text, re.S)
     if m:
-        return clean_text(m.group(1))[:500]
-    return ""
+        return clean_text(m.group(1))[:500], []
+    return "", []
 
 
 # ---------------------------------------------------------------------------
@@ -722,23 +778,52 @@ async def parse_questions(frame, container_sel: str, meta: Dict[str, str], url: 
             # 取整块文本用于正则分析（选项、答案、解析都在其中）
             block_text = await block.inner_text()
 
-            # 题干
-            stem = await extract_stem(block)
-            if not stem:
+            # 该题图片 URL 收集表：所有字段的 [[IMG:序号]] 统一指向此表
+            q_imgs: List[str] = []
+
+            def rebase(text: str, urls: List[str]) -> str:
+                """把某个元素内的占位符序号重编号为整题序号，并追加 URL 到收集表"""
+                offset = len(q_imgs)
+                q_imgs.extend(urls)
+                return re.sub(
+                    r"\[\[IMG:(\d+)\]\]",
+                    lambda m: f"[[IMG:{offset + int(m.group(1))}]]",
+                    text,
+                )
+
+            # 题干（带图片）
+            stem = ""
+            stem_imgs: List[str] = []
+            for sel in [".qtContent", ".Zy_TItle_t", ".Zy_TItle"]:
+                try:
+                    el = block.locator(sel).first
+                    if await el.count() > 0:
+                        stem, stem_imgs = await element_text_with_images(el)
+                        if clean_text(stem):
+                            break
+                except Exception:
+                    continue
+            if not clean_text(stem):
                 stem = clean_text(strip_type_tag(block_text))
                 stem = strip_question_no(stem)[:200]
+            else:
+                stem = strip_type_tag(strip_question_no(clean_text(stem)))
+            stem = rebase(stem, stem_imgs)
 
             # 题型（注意：题干乱码时先解码再识别题型标签）
             qtype = await extract_type(block, dec(block_text)[:200], dec(stem))
 
-            # 选项
-            options = await extract_options(block, block_text)
+            # 选项（带图片）
+            options, opt_imgs = await extract_options_rich(block, block_text)
+            for letter in list(options.keys()):
+                options[letter] = rebase(options[letter], opt_imgs.get(letter, []))
 
-            # 参考答案
+            # 参考答案（一般为字母/判断词，不含图片）
             answer = await extract_answer(block, block_text, qtype, options)
 
-            # 解析
-            analysis = await extract_analysis(block, block_text)
+            # 解析（带图片）
+            analysis, analysis_imgs = await extract_analysis_rich(block, block_text)
+            analysis = rebase(analysis, analysis_imgs)
 
             # 所有文本字段统一解码（还原字体加密的乱码）
             stem = dec(stem)
@@ -755,6 +840,7 @@ async def parse_questions(frame, container_sel: str, meta: Dict[str, str], url: 
                     "options": options,
                     "answer": answer,
                     "analysis": analysis,
+                    "images": q_imgs,  # 图片 URL 列表，占位符序号索引
                 }
             )
         except Exception as exc:
@@ -804,6 +890,92 @@ def build_output_basename(questions: List[Dict]) -> str:
     return name
 
 
+def img_mark_to_readable(text: str) -> str:
+    """把图片占位符 [[IMG:文件名]] 转为可读标注 “[图片: 文件名]”"""
+    if not text:
+        return text
+    return IMG_PLACEHOLDER_RE.sub(r"[图片: \1]", text)
+
+
+async def download_media(context, questions: List[Dict], basename: str) -> List[Dict]:
+    """
+    下载题目中的图片到 output/{basename}_图片/ 目录，
+    并把每题占位符 [[IMG:序号]] 替换为 [[IMG:文件名]]（下载成功后）。
+    图片 URL 去重后批量下载（每批 3 张 + 随机延时，避免触发风控）。
+    返回替换后的 questions（原列表就地修改）。
+    """
+    # 收集所有需要下载的图片 URL（去重，保留顺序）
+    url_to_file: Dict[str, str] = {}
+    need: List[str] = []
+    for q in questions:
+        for url in q.get("images", []):
+            if url and url not in url_to_file:
+                url_to_file[url] = ""
+                need.append(url)
+
+    if not need:
+        return questions
+
+    media_dir = OUTPUT_DIR / f"{basename}_图片"
+    media_dir.mkdir(parents=True, exist_ok=True)
+    logger.info(f"共发现 {len(need)} 张题目图片，正在下载到 {media_dir.name}/ ...")
+
+    downloaded = 0
+    for i in range(0, len(need), 3):  # 每批 3 张，防风控
+        batch = need[i:i + 3]
+        tasks = [_download_one(context, url, media_dir, url_to_file) for url in batch]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        downloaded += sum(1 for r in results if isinstance(r, str))
+        await wait_random(0.5, 1.2)  # 批间延时，模拟人工节奏
+
+    logger.info(f"图片下载完成：成功 {downloaded} / {len(need)}")
+
+    # 把占位符替换为文件名（失败者标注“下载失败”）
+    for q in questions:
+        imgs = q.get("images", [])
+
+        def rep(m):
+            k = int(m.group(1))
+            url = imgs[k] if k < len(imgs) else ""
+            fname = url_to_file.get(url, "")
+            return f"[[IMG:{fname}]]" if fname else "[图片: 下载失败]"
+
+        q["stem"] = IMG_PLACEHOLDER_RE.sub(rep, q.get("stem", ""))
+        q["options"] = {k: IMG_PLACEHOLDER_RE.sub(rep, v) for k, v in q.get("options", {}).items()}
+        q["analysis"] = IMG_PLACEHOLDER_RE.sub(rep, q.get("analysis", ""))
+    return questions
+
+
+async def _download_one(context, url: str, media_dir: Path, url_to_file: Dict[str, str]) -> str:
+    """下载单张图片，返回保存的文件名；失败返回空字符串"""
+    import hashlib
+    import io
+    try:
+        resp = await context.request.get(url, timeout=20_000)
+        if resp.status != 200:
+            logger.warning(f"图片下载失败({resp.status})：{url[:80]}")
+            return ""
+        body = await resp.body()
+        if not body:
+            return ""
+        # 依据 Content-Type / URL 推断扩展名
+        ctype = (resp.headers.get("content-type") or "").lower()
+        ext = {"image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif",
+               "image/webp": ".webp", "image/bmp": ".bmp"}.get(ctype, "")
+        if not ext:
+            m = re.search(r"\.(png|jpe?g|gif|webp|bmp)(?:$|\?)", url)
+            ext = ("." + m.group(1)) if m else ".png"
+        # 用 URL 哈希避免重名/超长文件名
+        fname = hashlib.md5(url.encode()).hexdigest()[:10] + ext
+        (media_dir / fname).write_bytes(body)
+        url_to_file[url] = fname
+        logger.info(f"  已下载 {fname}（{len(body)} 字节）")
+        return fname
+    except Exception as exc:
+        logger.warning(f"图片下载异常：{url[:80]} -> {exc}")
+        return ""
+
+
 def format_questions_text(questions: List[Dict]) -> str:
     """
     把题目列表格式化为稳定的结构化文本（TXT 与 Word 共用，刷题网页按此格式解析）。
@@ -831,16 +1003,16 @@ def format_questions_text(questions: List[Dict]) -> str:
     for idx, q in enumerate(questions, start=1):
         lines.append("")
         lines.append(f"【{idx}】【{q.get('qtype', '未知')}】")
-        lines.append(q.get("stem", ""))
+        lines.append(img_mark_to_readable(q.get("stem", "")))
         opts = q.get("options", {})
         for letter in "ABCDEFGH":
             content = opts.get(letter)
             if content:
-                lines.append(f"{letter}. {content}")
+                lines.append(f"{letter}. {img_mark_to_readable(content)}")
         if q.get("answer"):
-            lines.append(f"【参考答案】{q['answer']}")
+            lines.append(f"【参考答案】{img_mark_to_readable(q['answer'])}")
         if q.get("analysis"):
-            lines.append(f"【解析】{q['analysis']}")
+            lines.append(f"【解析】{img_mark_to_readable(q['analysis'])}")
     return "\n".join(lines)
 
 
@@ -859,8 +1031,30 @@ def export_txt(questions: List[Dict], basename: Optional[str] = None) -> Path:
     return out_path
 
 
+def _add_text_with_images(p, text: str, img_dir: Path):
+    """
+    把含图片占位符 [[IMG:文件名]] 的文本写入段落 p：
+    图片从 img_dir 读取并嵌入 Word（宽度 3cm），无图/失败时保留文本标注。
+    """
+    parts = IMG_PLACEHOLDER_RE.split(text)
+    for i, part in enumerate(parts):
+        if i % 2 == 0:
+            if part:
+                p.add_run(part)
+        else:
+            img_path = img_dir / part
+            if img_path.exists():
+                try:
+                    run = p.add_run()
+                    run.add_picture(str(img_path), width=Cm(3))
+                except Exception:
+                    p.add_run(f"[图片: {part}]")
+            else:
+                p.add_run(f"[图片: {part}]")
+
+
 def export_word(questions: List[Dict], basename: Optional[str] = None) -> Path:
-    """把题目列表写入 output/日期_作业名称.docx（Word 文档，加粗排版）"""
+    """把题目列表写入 output/日期_作业名称.docx（Word 文档，加粗排版，图片内嵌）"""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     try:
         from docx import Document
@@ -871,6 +1065,7 @@ def export_word(questions: List[Dict], basename: Optional[str] = None) -> Path:
         return Path()
 
     out_path = OUTPUT_DIR / f"{basename or build_output_basename(questions)}.docx"
+    img_dir = OUTPUT_DIR / f"{basename or build_output_basename(questions)}_图片"
     try:
         doc = Document()
         # 全局中文字体（宋体），避免 Word 打开中文乱码
@@ -888,22 +1083,27 @@ def export_word(questions: List[Dict], basename: Optional[str] = None) -> Path:
         doc.add_paragraph(f"采集时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         doc.add_paragraph(f"题目数量：{len(questions)}")
 
-        # 逐题写入（文本格式与 TXT 完全一致，网页可统一解析）
+        # 逐题写入（文本格式与 TXT 完全一致，图片内嵌）
         for idx, q in enumerate(questions, start=1):
             p = doc.add_paragraph()
-            run = p.add_run(f"【{idx}】【{q.get('qtype', '未知')}】{q.get('stem', '')}")
+            run = p.add_run(f"【{idx}】【{q.get('qtype', '未知')}】")
             run.bold = True
+            _add_text_with_images(p, q.get("stem", ""), img_dir)
             opts = q.get("options", {})
             for letter in "ABCDEFGH":
                 content = opts.get(letter)
                 if content:
-                    doc.add_paragraph(f"{letter}. {content}")
+                    op = doc.add_paragraph()
+                    op.add_run(f"{letter}. ")
+                    _add_text_with_images(op, content, img_dir)
             if q.get("answer"):
                 ap = doc.add_paragraph()
-                r = ap.add_run(f"【参考答案】{q['answer']}")
+                r = ap.add_run(f"【参考答案】{img_mark_to_readable(q['answer'])}")
                 r.bold = True
             if q.get("analysis"):
-                doc.add_paragraph(f"【解析】{q['analysis']}")
+                yp = doc.add_paragraph()
+                yp.add_run("【解析】")
+                _add_text_with_images(yp, q.get("analysis", ""), img_dir)
 
         doc.save(out_path)
     except PermissionError:
@@ -930,22 +1130,22 @@ def export_excel(questions: List[Dict], basename: Optional[str] = None) -> Path:
         cell.fill = header_fill
         cell.alignment = Alignment(horizontal="center", vertical="center")
 
-    # 数据行
+    # 数据行（图片以“[图片: 文件名]”标注，图片文件在同目录“xxx_图片”文件夹）
     for r, q in enumerate(questions, start=2):
         opts = q.get("options", {})
         row = [
             q.get("course", ""),
             q.get("chapter", ""),
             q.get("qtype", ""),
-            q.get("stem", ""),
-            opts.get("A", ""),
-            opts.get("B", ""),
-            opts.get("C", ""),
-            opts.get("D", ""),
-            opts.get("E", ""),
-            opts.get("F", ""),
-            q.get("answer", ""),
-            q.get("analysis", ""),
+            img_mark_to_readable(q.get("stem", "")),
+            img_mark_to_readable(opts.get("A", "")),
+            img_mark_to_readable(opts.get("B", "")),
+            img_mark_to_readable(opts.get("C", "")),
+            img_mark_to_readable(opts.get("D", "")),
+            img_mark_to_readable(opts.get("E", "")),
+            img_mark_to_readable(opts.get("F", "")),
+            img_mark_to_readable(q.get("answer", "")),
+            img_mark_to_readable(q.get("analysis", "")),
         ]
         for c, value in enumerate(row, start=1):
             cell = ws.cell(row=r, column=c, value=value)
@@ -1043,6 +1243,11 @@ async def crawl_url(url: str) -> int:
         logger.info(f"课程：{meta['course']} | 章节：{meta['chapter']}")
         questions = await parse_questions(frame, container_sel, meta, url, font_map)
 
+        # 下载题目图片（必须在关闭浏览器之前，复用登录会话的请求上下文）
+        base = build_output_basename(questions)
+        if questions:
+            questions = await download_media(context, questions, base)
+
         await page.close()
         await browser.close()
 
@@ -1051,7 +1256,6 @@ async def crawl_url(url: str) -> int:
             return 0
 
         # 同时导出 Excel / TXT / Word 三种格式（同一基础名，日期_作业名称）
-        base = build_output_basename(questions)
         excel_path = export_excel(questions, base)
         txt_path = export_txt(questions, base)
         word_path = export_word(questions, base)

@@ -78,6 +78,16 @@
   .tag.other  { background: #64748b; }
   .q-source { font-size: 12px; color: var(--muted); }
   .q-stem { font-size: 15px; line-height: 1.7; margin-bottom: 12px; font-weight: 500; }
+  /* 题目图片 / 公式截图 */
+  .q-img {
+    display: inline-block; max-width: 260px; max-height: 180px; width: auto; height: auto;
+    object-fit: contain; vertical-align: middle; margin: 4px 6px; border-radius: 6px;
+    border: 1px solid var(--border); background: #fff;
+  }
+  .q-stem .q-img, .analysis .q-img, .opt-content .q-img { max-width: 220px; max-height: 150px; }
+  .q-img.missing { border: 1px dashed #cbd5e1; min-width: 60px; min-height: 30px; }
+  .img-hint { font-size: 12px; color: #b45309; }
+  #imgDirInput { display: none; }
   .opts { display: grid; gap: 8px; }
   .opt {
     display: flex; align-items: flex-start; gap: 10px; width: 100%; text-align: left;
@@ -124,14 +134,18 @@
   <button class="btn" data-filter="多选">多选</button>
   <button class="btn" data-filter="判断">判断</button>
   <button class="btn" data-filter="wrong">❌ 错题本 (<span id="wrongCount">0</span>)</button>
+  <button class="btn ghost" id="btnLoadImages" style="display:none;">🖼️ 选择图片文件夹</button>
+  <span class="img-hint" id="imgStatus"></span>
   <button class="btn ghost" id="btnReset">重置进度</button>
   <button class="btn ghost" id="btnLoadAnother">换题库</button>
 </div>
+<input type="file" id="imgDirInput" webkitdirectory multiple style="display:none;">
 
 <div class="drop-zone" id="dropZone">
   <span class="big">📄</span>
   <p>点击选择，或拖拽题库文件到此处</p>
-  <small>支持 Excel(.xlsx) / TXT(.txt) / Word(.docx)，由 crawler/main.py 生成，存放在 output 文件夹</small>
+  <small>支持 Excel(.xlsx) / TXT(.txt) / Word(.docx)，由 crawler/main.py 生成，存放在 output 文件夹<br>
+  若题目含图片/公式，导入后再点顶部「选择图片文件夹」，选择同目录下「xxx_图片」文件夹</small>
 </div>
 <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.txt,.docx">
 
@@ -151,6 +165,29 @@ var bank = [];            // 当前题库（原始数组）
 var filter = "all";       // 当前筛选：all / 单选 / 多选 / 判断 / wrong
 var progressKey = "cx_practice_progress_v1"; // 答题记录 key
 var wrongKey = "cx_practice_wrong_v1";       // 错题本 key
+var imgMap = {};          // 图片文件名 -> Blob URL（选择“xxx_图片”文件夹后填充）
+
+/* ============================================================
+ * 图片渲染
+ * 爬虫导出的题库里，图片以“[图片: 文件名]”标注，图片文件在
+ * “xxx_图片”文件夹中。用户选择该文件夹后即可显示图片。
+ * ============================================================ */
+function renderImages(text) {
+  // 先 HTML 转义（防注入），再把 [图片: 文件名] 转成 <img> 占位
+  var esc = escapeHtml(String(text == null ? "" : text));
+  return esc.replace(/\[图片:\s*([^\]]+)\]/g, function (_, f) {
+    return '<img class="q-img" data-file="' + escapeHtml(f.trim()) + '" alt="[图片]">';
+  });
+}
+function hydrateImages(root) {
+  // 用已加载的图片映射填充 <img>；未加载的显示为占位虚线框
+  root.querySelectorAll("img.q-img[data-file]").forEach(function (im) {
+    var f = im.getAttribute("data-file");
+    var url = imgMap[f];
+    if (url) { im.src = url; }
+    else { im.classList.add("missing"); im.title = "图片未加载：" + f + "（点顶部「选择图片文件夹」）"; }
+  });
+}
 
 /* ============================================================
  * 本地存储工具
@@ -429,10 +466,10 @@ function buildCard(q, idx, wrongSet) {
   head.appendChild(no);
   card.appendChild(head);
 
-  // 题干
+  // 题干（支持图片/公式）
   var stem = document.createElement("div");
   stem.className = "q-stem";
-  stem.textContent = q.stem;
+  stem.innerHTML = renderImages(q.stem);
   card.appendChild(stem);
 
   // 选项
@@ -449,7 +486,8 @@ function buildCard(q, idx, wrongSet) {
     btn.type = "button";
     btn.className = "opt";
     btn.dataset.letter = L;
-    btn.innerHTML = '<span class="letter">' + L + '</span><span>' + escapeHtml(opts[L]) + "</span>";
+    btn.innerHTML = '<span class="letter">' + L + '</span><span class="opt-content">' +
+      renderImages(opts[L]) + "</span>";
 
     // 多选：复选风格
     if (q.qtype === "多选") {
@@ -512,10 +550,13 @@ function buildCard(q, idx, wrongSet) {
     ansHtml = "<b>参考答案：</b><span class='ans'>" + escapeHtml(q.answer) + "</span>";
   }
   if (q.analysis) {
-    ansHtml += "<br><b>解析：</b>" + escapeHtml(q.analysis);
+    ansHtml += "<br><b>解析：</b>" + renderImages(q.analysis);
   }
   analysisBox.innerHTML = ansHtml || "<i>本题未提供答案或解析</i>";
   card.appendChild(analysisBox);
+
+  // 图片占位统一填充（已选图片文件夹则显示图片）
+  hydrateImages(card);
 
   // 提交判分（单选/判断点击即触发；多选点提交触发）
   function submitOnce(letters, texts) {
@@ -602,6 +643,23 @@ function loadFile(file) {
     document.getElementById("toolbar").style.display = "flex";
     document.getElementById("dropZone").style.display = "none";
     document.title = "学习通题库 · " + bank.length + " 题";
+    // 检测题库是否含图片标注，给出提示
+    var hasImg = bank.some(function (q) {
+      var s = (q.stem || "") + "|" + (q.analysis || "");
+      Object.keys(q.options || {}).forEach(function (k) { s += "|" + q.options[k]; });
+      return /\[图片:/.test(s);
+    });
+    var imgBtn = document.getElementById("btnLoadImages");
+    var imgStatus = document.getElementById("imgStatus");
+    if (hasImg) {
+      imgBtn.style.display = "";
+      imgStatus.textContent = Object.keys(imgMap).length
+        ? "已加载 " + Object.keys(imgMap).length + " 张图片"
+        : "本题库含图片，请选择「xxx_图片」文件夹以显示";
+    } else {
+      imgBtn.style.display = "none";
+      imgStatus.textContent = "";
+    }
     render();
   }
 
@@ -689,6 +747,22 @@ document.getElementById("btnReset").addEventListener("click", function () {
 document.getElementById("btnLoadAnother").addEventListener("click", function () {
   if (!confirm("切换题库将保留已答题记录（按题干自动匹配）。确定继续？")) return;
   document.getElementById("fileInput").click();
+});
+
+/* 选择图片文件夹（爬虫导出的“xxx_图片”目录） */
+document.getElementById("btnLoadImages").addEventListener("click", function () {
+  document.getElementById("imgDirInput").click();
+});
+document.getElementById("imgDirInput").addEventListener("change", function (e) {
+  var files = e.target.files || [];
+  if (!files.length) return;
+  imgMap = {};
+  Array.prototype.forEach.call(files, function (f) {
+    imgMap[f.name] = URL.createObjectURL(f);
+  });
+  document.getElementById("imgStatus").textContent = "已加载 " + files.length + " 张图片";
+  render(); // 重新渲染，让题目中的图片显示出来
+  e.target.value = "";
 });
 </script>
 </body>
