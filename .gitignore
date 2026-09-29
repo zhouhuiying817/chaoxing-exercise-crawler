@@ -19,6 +19,8 @@ env/
 # ---------- 测试运行产物 ----------
 tests/sample_bank*.xlsx
 tests/*.tmp
+# 一次性排查脚本归档目录（不随仓库提交）
+tests/archive/
 
 # ---------- 临时文件 ----------
 *.tmp

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>学习通题库采集</title>
+<style>
+  body {
+    width: 320px; margin: 0; padding: 14px 16px;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    font-size: 13px; color: #1e293b; background: #f8fafc;
+  }
+  h1 { font-size: 15px; margin: 0 0 4px; color: #2563eb; }
+  .sub { font-size: 11px; color: #64748b; margin-bottom: 10px; }
+  .row { margin: 8px 0; }
+  #courseInput {
+    width: 100%; box-sizing: border-box; padding: 6px 8px; margin-top: 4px;
+    border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; color: #1e293b;
+  }
+  label { display: inline-flex; align-items: center; gap: 5px; margin-right: 12px;
+          cursor: pointer; user-select: none; }
+  input[type=checkbox] { accent-color: #2563eb; }
+  #btnCollect {
+    width: 100%; padding: 10px; border: none; border-radius: 8px;
+    background: #2563eb; color: #fff; font-size: 14px; cursor: pointer;
+  }
+  #btnCollect:hover { background: #1d4ed8; }
+  #btnCollect:disabled { background: #93c5fd; cursor: not-allowed; }
+  #status { margin-top: 10px; font-size: 12px; color: #475569; min-height: 34px;
+            white-space: pre-wrap; word-break: break-all; }
+  .ok { color: #16a34a; } .err { color: #dc2626; } .warn { color: #b45309; }
+  .note { font-size: 11px; color: #94a3b8; margin-top: 8px; line-height: 1.5; }
+  #result { margin-top: 8px; font-size: 12px; color: #334155; }
+  #result.warn { font-size: 11px; line-height: 1.6; }
+</style>
+</head>
+<body>
+  <h1>📚 学习通题库采集</h1>
+  <div class="sub" id="pageInfo">正在读取当前页面…</div>
+
+  <div class="row">
+    <label><input type="checkbox" id="fmtXlsx" checked> Excel(.xlsx)</label>
+    <label><input type="checkbox" id="fmtTxt" checked> TXT(.txt)</label>
+    <label><input type="checkbox" id="fmtDocx" checked> Word(.docx)</label>
+  </div>
+
+  <div class="row">
+    <label for="courseInput">课程名称（可自动识别或手动填写）：</label>
+    <input type="text" id="courseInput" placeholder="自动识别中…">
+  </div>
+
+  <button id="btnCollect">采集本页题目</button>
+  <div id="status">就绪</div>
+  <div id="result"></div>
+  <div class="note">只采集当前页面，不翻页、不遍历、不自动答题。
+    导出文件将保存在浏览器“下载/学习通题库/作业名_日期_时间/”文件夹。</div>
+
+<script src="popup.js"></script>
+</body>
+</html>

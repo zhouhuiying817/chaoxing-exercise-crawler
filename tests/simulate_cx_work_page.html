@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>扩展冒烟测试页B（模拟 work/view 作业详情结构）</title>
+</head>
+<body>
+  <div class="headTitle">作业详情</div>
+  <div class="mark_title">第一章 选择题</div>
+
+  <!-- 题1：我的答案≠正确答案，验证答案提取优先“正确答案” -->
+  <div class="marBom60 questionLi singleQuesId">
+    <div class="aiArea"><div class="aiAreaContent">
+      <h3 class="mark_name colorDeep">1. <span class="colorShallow">(单选题)</span>
+        <span class="qtContent workTextWrap"><p><span>通常被认为是互联网最早前身的网络项目是哪一个？</span></p></span></h3>
+      <ul class="mark_letter colorDeep qtDetail">
+        <li class="workTextWrap">A. <p><span>ARPANET</span></p></li>
+        <li class="workTextWrap">B. <p><span>NSFNET</span></p></li>
+        <li class="workTextWrap">C. <p><span>CERNET</span></p></li>
+        <li class="workTextWrap">D. <p><span>Usenet</span></p></li>
+      </ul>
+      <div class="answerArea">我的答案:A<br>正确答案:B<br>7.1分</div>
+      <div class="analysisArea">答案解析：<p>ARPANET是正确答案以外的干扰项。</p></div>
+    </div></div>
+  </div>
+
+  <!-- 题2：选项带重复字母前缀，验证清洗 -->
+  <div class="marBom60 questionLi singleQuesId">
+    <div class="aiArea"><div class="aiAreaContent">
+      <h3 class="mark_name colorDeep">2. <span class="colorShallow">(多选题)</span>
+        <span class="qtContent workTextWrap"><p><span>下列属于水果的有？</span></p></span></h3>
+      <ul class="mark_letter colorDeep qtDetail">
+        <li class="workTextWrap">A. <p><span>苹果</span></p></li>
+        <li class="workTextWrap">B. <p><span>香蕉</span></p></li>
+        <li class="workTextWrap">C. <p><span>C. 超文本传输协议（HTTP）</span></p></li>
+        <li class="workTextWrap">D. <p><span>白菜</span></p></li>
+      </ul>
+      <div class="answerArea">我的答案:A<br>正确答案:AB<br>10分</div>
+      <div class="analysisArea">答案解析：<p>苹果和香蕉是水果。</p></div>
+    </div></div>
+  </div>
+
+  <script src="../extension/font-common.js"></script>
+  <script src="../extension/collect.js"></script>
+  <script>
+  (async function () {
+    try {
+      var r = await window.__CX_COLLECT();
+      document.getElementById("out").textContent = JSON.stringify(r, null, 2);
+      document.title = "COLLECT_OK:" + (r.questions || []).length;
+    } catch (e) {
+      document.getElementById("out").textContent = "执行出错: " + (e && e.stack || e);
+      document.title = "COLLECT_ERR";
+    }
+  })();
+  </script>
+  <pre id="out">运行中…</pre>
+</body>
+</html>

@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "学习通题库采集",
+  "version": "0.1.0",
+  "description": "一键采集当前学习通页面（章节测验/作业）的题目，按需导出 Excel / TXT / Word 题库，供本地刷题网页使用。仅采集当前页面，不翻页、不遍历、不自动答题。",
+  "permissions": ["activeTab", "scripting", "downloads", "tabs", "storage"],
+  "host_permissions": [
+    "*://*.chaoxing.com/*",
+    "*://*.edu.cn/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

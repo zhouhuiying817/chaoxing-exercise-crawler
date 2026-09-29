@@ -40,6 +40,12 @@
   }
   .toolbar .stat { font-size: 13px; color: var(--muted); }
   .toolbar .stat b { color: var(--text); }
+  .course-bar {
+    max-width: 960px; margin: 10px auto 0; padding: 0 16px;
+    display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  }
+  .course-bar .btn { padding: 4px 12px; font-size: 12px; }
+  .course-label { font-size: 12px; color: var(--muted); margin-right: 2px; }
   .btn {
     border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer;
     font-size: 13px; background: #eef2ff; color: var(--primary-dark);
@@ -141,6 +147,7 @@
   <button class="btn ghost" id="btnReset">重置进度</button>
   <button class="btn ghost" id="btnLoadAnother">换题库</button>
 </div>
+<div class="course-bar" id="courseBar" style="display:none;"></div>
 <input type="file" id="imgDirInput" webkitdirectory multiple style="display:none;">
 
 <div class="drop-zone" id="dropZone">
@@ -167,6 +174,8 @@ var bank = [];            // 当前题库（原始数组）
 var bankOriginal = null;  // 题库原始顺序（乱序开启前保存，用于恢复）
 var shuffleOn = false;    // 是否处于乱序状态
 var filter = "all";       // 当前筛选：all / 单选 / 多选 / 判断 / wrong
+var courseFilter = "all"; // 课程筛选：all / 具体课程名
+var courseList = [];      // 题库内出现的课程名列表
 var progressKey = "cx_practice_progress_v1"; // 答题记录 key
 var wrongKey = "cx_practice_wrong_v1";       // 错题本 key
 var imgMap = {};          // 图片文件名 -> Blob URL（选择“xxx_图片”文件夹后填充）
@@ -365,16 +374,48 @@ function parseDocx(buffer, callback) {
  * 渲染
  * ============================================================ */
 function visibleList() {
-  if (filter === "all") return bank;
-  if (filter === "wrong") {
+  var list;
+  if (filter === "all") {
+    list = bank.slice();
+  } else if (filter === "wrong") {
     var wrong = getWrong();
     var set = {};
     wrong.forEach(function (w) { set[qKey(w.q)] = w; });
-    var out = [];
-    bank.forEach(function (q) { if (set[qKey(q)]) out.push(q); });
-    return out;
+    list = [];
+    bank.forEach(function (q) { if (set[qKey(q)]) list.push(q); });
+  } else {
+    list = bank.filter(function (q) { return q.qtype === filter; });
   }
-  return bank.filter(function (q) { return q.qtype === filter; });
+  // 课程筛选（与题型筛选叠加）
+  if (courseFilter !== "all") {
+    list = list.filter(function (q) { return (q.course || "未知课程") === courseFilter; });
+  }
+  return list;
+}
+
+/* 课程筛选栏：从题库提取课程名生成按钮 */
+function buildCourseBar() {
+  var bar = document.getElementById("courseBar");
+  if (!bar) return;
+  bar.innerHTML = "";
+  var label = document.createElement("span");
+  label.className = "course-label";
+  label.textContent = "课程：";
+  bar.appendChild(label);
+  function mkBtn(text, value) {
+    var b = document.createElement("button");
+    b.className = "btn" + (courseFilter === value ? " active" : "");
+    b.textContent = text;
+    b.addEventListener("click", function () {
+      courseFilter = value;
+      buildCourseBar();
+      render();
+    });
+    bar.appendChild(b);
+  }
+  mkBtn("全部课程", "all");
+  courseList.forEach(function (c) { mkBtn(c, c); });
+  bar.style.display = "flex";
 }
 
 function tagClass(t) {
@@ -736,6 +777,14 @@ function loadFile(file) {
       imgBtn.style.display = "none";
       imgStatus.textContent = "";
     }
+    // 课程筛选栏：从题库提取课程名
+    courseList = [];
+    bank.forEach(function (q) {
+      var c = q.course || "未知课程";
+      if (courseList.indexOf(c) < 0) courseList.push(c);
+    });
+    courseFilter = "all";
+    buildCourseBar();
     render();
   }
 

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>扩展冒烟测试页（模拟学习通题目结构）</title>
+<style>
+  body { font-family: "Microsoft YaHei", sans-serif; margin: 16px; }
+  .questionLi { border: 1px solid #ddd; margin: 10px 0; padding: 10px; }
+  .courseName { font-weight: bold; }
+  #out { white-space: pre-wrap; background: #f5f5f5; padding: 12px; }
+</style>
+</head>
+<body>
+  <div class="courseName">高等数学（上）</div>
+  <div class="crumb">高等数学（上） &gt; 第二章 单元测验</div>
+
+  <div class="questionLi">
+    <div class="qtContent">
+      <div class="mark_title">第二章 单元测验</div>
+      <div class="Zy_TItle clearfix"><div class="Zy_TItle_t">（单选题）1+1等于（）</div></div>
+    </div>
+    <div class="qtDetail">
+      <ul class="Zy_ulTop">
+        <li class="clearfix"><i class="fl">A</i><div class="fl">1</div></li>
+        <li class="clearfix"><i class="fl">B</i><div class="fl">2</div></li>
+        <li class="clearfix"><i class="fl">C</i><div class="fl">3</div></li>
+        <li class="clearfix"><i class="fl">D</i><div class="fl">4</div></li>
+      </ul>
+    </div>
+    <div class="marking_da">正确答案：B</div>
+    <div class="marking_exam">解析：1+1=2，故选B。</div>
+  </div>
+
+  <div class="questionLi">
+    <div class="qtContent">
+      <div class="Zy_TItle clearfix"><div class="Zy_TItle_t">（多选题）下列属于水果的有（）</div></div>
+    </div>
+    <div class="qtDetail">
+      <ul class="Zy_ulTop">
+        <li class="clearfix"><i class="fl">A</i><div class="fl">苹果</div></li>
+        <li class="clearfix"><i class="fl">B</i><div class="fl">香蕉</div></li>
+        <li class="clearfix"><i class="fl">C</i><div class="fl">土豆</div></li>
+        <li class="clearfix"><i class="fl">D</i><div class="fl">白菜</div></li>
+      </ul>
+    </div>
+    <div class="marking_da">正确答案：AB</div>
+    <div class="marking_exam">解析：苹果和香蕉是水果。</div>
+  </div>
+
+  <div class="questionLi">
+    <div class="qtContent">
+      <div class="Zy_TItle clearfix"><div class="Zy_TItle_t">（判断题）地球是圆的。</div></div>
+    </div>
+    <div class="qtDetail">
+      <ul class="Zy_ulTop">
+        <li class="clearfix"><i class="fl">A</i><div class="fl">正确</div></li>
+        <li class="clearfix"><i class="fl">B</i><div class="fl">错误</div></li>
+      </ul>
+    </div>
+    <div class="marking_da">正确答案：A</div>
+    <div class="marking_exam">解析：地球是一个近似球体。</div>
+  </div>
+
+  <div class="questionLi">
+    <div class="qtContent">
+      <div class="Zy_TItle clearfix"><div class="Zy_TItle_t">（单选题）请观察下图回答问题（）</div></div>
+    </div>
+    <div class="qtDetail">
+      <ul class="Zy_ulTop">
+        <li class="clearfix"><i class="fl">A</i><div class="fl"><img data-original="https://example.com/fig1.png" alt="图A"></div></li>
+        <li class="clearfix"><i class="fl">B</i><div class="fl">选项B文字</div></li>
+      </ul>
+    </div>
+    <div class="marking_da">正确答案：A</div>
+    <div class="marking_exam">解析：见图示。</div>
+  </div>
+
+  <!-- 注入扩展脚本并执行采集，结果写入 #out 与 document.title -->
+  <script src="../extension/font-common.js"></script>
+  <script src="../extension/collect.js"></script>
+  <script>
+  (async function () {
+    try {
+      var r = await window.__CX_COLLECT();
+      var json = JSON.stringify(r, null, 2);
+      document.getElementById("out").textContent = json;
+      document.title = "COLLECT_OK:" + json.length;
+    } catch (e) {
+      document.getElementById("out").textContent = "执行出错: " + (e && e.stack || e);
+      document.title = "COLLECT_ERR";
+    }
+  })();
+  </script>
+  <h3>采集结果：</h3>
+  <pre id="out">运行中…</pre>
+</body>
+</html>

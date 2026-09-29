@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><title>模拟：学习通填空题/简答题</title></head>
+<body>
+<h1>第一章 章节测验（含填空/简答）</h1>
+
+<!-- 填空题 -->
+<div class="TiMu">
+  <h3 class="Zy_TItle_t">1. 填空题 TCP/IP 协议模型中，传输层的主要协议是____和____。</h3>
+  <div class="Zy_TItle">我的答案：TCP、UDP</div>
+  <div class="marking_da">正确答案：TCP、UDP</div>
+  <div class="analysis_text">解析：传输层提供端到端通信，TCP 面向连接、UDP 无连接。</div>
+</div>
+
+<!-- 简答题 -->
+<div class="TiMu">
+  <h3 class="Zy_TItle_t">2. 简答题 简述 HTTP 协议的工作过程。</h3>
+  <div class="Zy_TItle">我的答案：客户端发起请求，服务器响应。</div>
+  <div class="marking_da">正确答案：客户端向服务器发送请求报文，服务器处理后返回响应报文，连接可复用。</div>
+  <div class="analysis_text">解析：HTTP 基于请求-响应模型。</div>
+</div>
+
+<!-- 名词解释 -->
+<div class="TiMu">
+  <h3 class="Zy_TItle_t">3. 名词解释 什么是 DNS？</h3>
+  <div class="marking_da">正确答案：域名系统，用于将域名解析为 IP 地址。</div>
+  <div class="analysis_text">解析：DNS 是互联网的基础服务。</div>
+</div>
+
+<!-- 普通单选（回归） -->
+<div class="TiMu">
+  <h3 class="Zy_TItle_t">4. 单选题 下列哪个不是传输层协议？</h3>
+  <ul class="Zy_ulTop">
+    <li>A. TCP</li>
+    <li>B. UDP</li>
+    <li>C. IP</li>
+    <li>D. ICMP</li>
+  </ul>
+  <div class="marking_da">正确答案：C</div>
+  <div class="analysis_text">解析：IP 是网络层协议。</div>
+</div>
+
+<pre id="out"></pre>
+<script src="../extension/font-common.js"></script>
+<script src="../extension/collect.js"></script>
+<script>
+(async function () {
+  var r = await window.__CX_COLLECT();
+  var out = document.getElementById("out");
+  if (!r.ok) { out.textContent = "FAIL: " + (r.error || "未知"); document.title = "FAIL"; return; }
+  var lines = r.questions.map(function (q, i) {
+    return "Q" + (i + 1) + " type=" + q.qtype + " | answer=" + q.answer + " | analysis=" + (q.analysis || "").slice(0, 20);
+  });
+  out.textContent = lines.join("\n");
+  document.title = "COLLECT_OK:" + r.questions.length;
+})();
+</script>
+</body>
+</html>

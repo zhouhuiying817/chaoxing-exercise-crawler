@@ -26,6 +26,13 @@ chaoxing-exercise-crawler/
 │  ├─ index.html         # 刷题页面
 │  ├─ xlsx.full.min.js   # 离线 Excel 解析库（SheetJS，已内置本地）
 │  └─ mammoth.min.js     # 离线 Word 解析库（docx -> 文本，已内置本地）
+├─ extension/            # 浏览器扩展版（Edge/Chrome，无需 Python，见「扩展版」）
+│  ├─ manifest.json      # MV3 清单
+│  ├─ popup.html/js      # 弹窗：勾选导出格式并采集
+│  ├─ collect.js         # 页面采集核心（题目/选项/答案/解析/图片）
+│  ├─ font-common.js     # 字体加密（font-cxsecret）前端解密
+│  ├─ background.js      # 后台：下载图片 + 生成 xlsx/txt/docx
+│  └─ README.md          # 扩展版安装与使用说明
 ├─ tests/                # 自动化自测脚本（见第六节）
 ├─ samples/              # 脱敏示例题库（不爬虫也能体验刷题网页，见「快速体验」）
 ├─ tools/
@@ -40,6 +47,18 @@ chaoxing-exercise-crawler/
 > 说明：`output/`（采集题库）与 `logs/`（运行日志）包含你的个人课程数据，
 > 已在 `.gitignore` 中排除，**不会**被提交到 Git 仓库。
 > `.vscode/` 内含本机 Python 解释器绝对路径，同样不入库。
+
+---
+
+## 扩展版（浏览器插件，无需 Python）
+
+如果你不想开 Python，可以用 **浏览器扩展版**：在学习通题目页面点一下工具栏的
+📚 图标，勾选要导出的格式（Excel / TXT / Word，可多选），题库即导出到浏览器
+“下载 / 学习通题库 / 作业名_日期_时间 /” 文件夹。
+
+- 安装与使用详见 [`extension/README.md`](extension/README.md)；
+- 功能与 Python 版等价：只采集当前页面、自动展开答案、自动识别字体加密、自动下载题目图片；
+- 登录仍由你在浏览器中手动完成，扩展不含任何登录逻辑。
 
 ---
 
